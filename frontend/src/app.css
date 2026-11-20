@@ -1,0 +1,94 @@
+/* Tokens and shared pieces, taken from mockups/index.html. */
+:root {
+  --wall: #dde2e6;
+  --wall-2: #cfd5da;
+  --mat: #fafaf7;
+  --ink: #1a1f24;
+  --ink-2: #56606a;
+  --rule: #c3cad0;
+  --wood-hi: #6b4a35;
+  --wood-lo: #2b1d15;
+  --side: #2a1e17;
+  --side-ink: #efe9e2;
+  --side-ink-2: #b9a99b;
+  --brass: #b5893a;
+  --brass-ink: #241a08;
+  --keep: #8c969f;
+  --send: #2f7d5b;
+  --del: #b23a3a;
+  --foreign: #7a5ba6;
+  --skip: #c9a24a;
+  --shadow: 0 12px 22px -12px rgb(20 25 30 / .45);
+  --display: "Gloock", Georgia, serif;
+  --ui: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --wall: #1b1f22; --wall-2: #24292d; --mat: #2a2f33; --ink: #e8eaec; --ink-2: #9aa4ad;
+    --rule: #3a4147; --side: #140e0b; --brass: #d2a65a; --keep: #6d7780;
+    --send: #4fae84; --del: #e06464; --foreign: #a68bd0; --skip: #d9b45e;
+    --shadow: 0 12px 22px -12px rgb(0 0 0 / .8);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--wall); color: var(--ink); font: 15px/1.45 var(--ui); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+a { color: inherit; }
+
+.head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.head h1 { font-family: var(--display); font-weight: 400; font-size: 38px; line-height: 1; margin: 0; }
+.head p { margin: 6px 0 0; color: var(--ink-2); }
+.head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn { border: 1px solid var(--rule); background: var(--mat); padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--ink-2); }
+.btn.primary { background: var(--brass); border-color: var(--brass); color: var(--brass-ink); font-weight: 700; }
+.btn.danger { color: var(--del); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--ink-2); }
+.ok { color: var(--send); }
+.warn { color: var(--del); }
+.hint { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+.panel { background: var(--mat); border: 1px solid var(--rule); border-radius: 8px; }
+
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--keep); margin-right: 6px; vertical-align: 1px; }
+.dot.local { background: var(--send); }
+.dot.relay { background: var(--skip); }
+.dot.busy { background: var(--brass); animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .3; } }
+
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--mat); }
+.seg button { all: unset; cursor: pointer; padding: 7px 12px; font-size: 14px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--mat); }
+.seg button:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+
+.form { display: grid; grid-template-columns: 230px 1fr; }
+.form > .row { display: contents; }
+.form .row > * { padding: 16px 18px; border-bottom: 1px solid var(--rule); }
+.form .row:last-child > * { border-bottom: none; }
+.form .k { font-weight: 700; }
+.form .k small { display: block; font-weight: 400; color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.form input[type=text], .form input[type=number] {
+  border: 1px solid var(--rule); background: var(--wall); border-radius: 6px; padding: 7px 10px; width: min(420px, 100%);
+}
+.form input[type=number] { width: 110px; }
+.group-title { font: 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 30px 0 10px; }
+
+dialog { border: none; border-radius: 10px; padding: 0; background: var(--mat); color: var(--ink); width: min(480px, 92vw); box-shadow: 0 30px 60px -20px rgb(0 0 0 / .5); }
+dialog::backdrop { background: rgb(20 15 10 / .55); }
+dialog .in { padding: 26px 28px; }
+dialog h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0 0 6px; }
+dialog footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 28px; border-top: 1px solid var(--rule); }
+dialog label { display: block; font-weight: 700; margin: 16px 0 6px; }
+dialog input { width: 100%; border: 1px solid var(--rule); border-radius: 6px; background: var(--wall); padding: 10px 12px; }
+dialog input.code { font: 22px var(--mono); text-align: center; letter-spacing: .08em; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

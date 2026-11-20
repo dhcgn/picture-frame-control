@@ -1,21 +1,50 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package main
 
 import (
 	"embed"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"github.com/dhcgn/picture-frame-control/internal/store"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
+func init() {
+	application.RegisterEvent[SendProgress]("send:progress")
+}
+
 func main() {
+	dir, err := store.DefaultDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	st, err := store.Open(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	frames := NewFrameService(st, filepath.Join(cache, "picture-frame-control"))
+
 	app := application.New(application.Options{
 		Name:        "Picture-Frame-Control",
 		Description: "Immich-Alben und -Tags auf Frameo-Bilderrahmen spiegeln",
+		Services: []application.Service{
+			application.NewService(frames),
+			application.NewService(&SettingsService{store: st, frames: frames}),
+		},
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
+			Handler:    application.AssetFileServerFS(assets),
+			Middleware: frames.thumbMiddleware,
 		},
 	})
 

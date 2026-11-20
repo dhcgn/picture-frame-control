@@ -213,7 +213,7 @@ Events Go → UI: `sync:progress {frame, phase, done, total, asset}` · `sync:lo
 | M | Inhalt | Ergebnis |
 |---|---|---|
 | M0 ✓ | Go-Modul, Wails-v3-Template, LICENSE/NOTICE, unframeo-Pakete übernehmen, `link` extrahieren | Build und übernommene Tests grün (2026-11-20) |
-| M1 | Frame-Verwaltung F-01..F-13, store mit DPAPI, unframeo-Import | Frames per UI steuerbar |
+| M1 ✓ | Frame-Verwaltung F-01..F-13, store mit DPAPI, unframeo-Import | Frames per UI steuerbar (2026-11-20, lesend am echten Frame geprüft) |
 | M2 | Immich-Client, Alben/Tags, Zuordnungsmatrix | Quellen je Frame wählbar |
 | M3 | Sync für Bilder ohne magick, syncplan mit Test, Live-Test O-2 | Spiegeln funktioniert |
 | M4 | magick/WebP, Tool-Erkennung, Cache, Live-Test O-3 | Kleinere Dateien |
