@@ -76,7 +76,7 @@ jobs:
             echo "$eof"
           } >> "$GITHUB_OUTPUT"
           if [ -n "$RESPONSE_FILE" ] && [ -s "$RESPONSE_FILE" ]; then
-            cat "$RESPONSE_FILE" >> "$GITHUB_STEP_SUMMARY"
+            tee -a "$GITHUB_STEP_SUMMARY" < "$RESPONSE_FILE" # also into the log
           else
             echo "No AI notes; the release gets GitHub's generated notes." >> "$GITHUB_STEP_SUMMARY"
           fi
