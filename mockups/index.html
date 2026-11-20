@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Picture-Frame-Control · Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gloock&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --wall: #dde2e6;
+  --wall-2: #cfd5da;
+  --mat: #fafaf7;
+  --ink: #1a1f24;
+  --ink-2: #56606a;
+  --rule: #c3cad0;
+  --wood-hi: #6b4a35;
+  --wood-lo: #2b1d15;
+  --side: #2a1e17;
+  --side-ink: #efe9e2;
+  --side-ink-2: #b9a99b;
+  --brass: #b5893a;
+  --brass-ink: #241a08;
+  --keep: #8c969f;
+  --send: #2f7d5b;
+  --del: #b23a3a;
+  --foreign: #7a5ba6;
+  --skip: #c9a24a;
+  --shadow: 0 12px 22px -12px rgb(20 25 30 / .45);
+  --display: "Gloock", Georgia, serif;
+  --ui: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --wall: #1b1f22; --wall-2: #24292d; --mat: #2a2f33; --ink: #e8eaec; --ink-2: #9aa4ad;
+    --rule: #3a4147; --side: #140e0b; --brass: #d2a65a; --keep: #6d7780;
+    --send: #4fae84; --del: #e06464; --foreign: #a68bd0; --skip: #d9b45e;
+    --shadow: 0 12px 22px -12px rgb(0 0 0 / .8);
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--wall); color: var(--ink); font: 15px/1.45 var(--ui);
+  display: grid; grid-template-columns: 228px 1fr; min-height: 100vh;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* ---------- sidebar: the walnut moulding ---------- */
+.side {
+  background: var(--side); color: var(--side-ink); padding: 22px 14px;
+  display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh;
+  box-shadow: inset -6px 0 10px -6px rgb(0 0 0 / .6);
+}
+.brand { font-family: var(--display); font-size: 21px; line-height: 1.1; padding: 0 10px 22px; }
+.brand small { display: block; font: 12px var(--mono); color: var(--side-ink-2); margin-top: 6px; letter-spacing: .02em; }
+.nav { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 6px; color: var(--side-ink-2); }
+.nav:hover { color: var(--side-ink); background: rgb(255 255 255 / .05); }
+.nav[aria-current="page"] { color: var(--side-ink); background: rgb(255 255 255 / .08); box-shadow: inset 3px 0 0 var(--brass); }
+.nav .count { margin-left: auto; font: 12px var(--mono); color: var(--side-ink-2); }
+.side .foot { margin-top: auto; font-size: 13px; color: var(--side-ink-2); padding: 12px 10px 0; border-top: 1px solid rgb(255 255 255 / .1); }
+.side .foot b { color: var(--side-ink); font-weight: 400; }
+
+/* ---------- shared ---------- */
+main { padding: 30px 40px 120px; min-width: 0; }
+.view { display: none; }
+.view.on { display: block; }
+.head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.head h1 { font-family: var(--display); font-weight: 400; font-size: 38px; line-height: 1; margin: 0; }
+.head p { margin: 6px 0 0; color: var(--ink-2); }
+.head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: var(--mat); padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--brass); border-color: var(--brass); color: var(--brass-ink); font-weight: 700; }
+.btn.danger { color: var(--del); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--ink-2); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--send); margin-right: 6px; vertical-align: 1px; }
+.dot.relay { background: var(--skip); }
+.dot.off { background: var(--keep); }
+.panel { background: var(--mat); border: 1px solid var(--rule); border-radius: 8px; }
+.mockflag { position: fixed; right: 14px; top: 10px; font: 12px var(--mono); color: var(--ink-2); background: var(--mat); border: 1px dashed var(--rule); padding: 4px 8px; border-radius: 4px; }
+
+/* ---------- the signature: a framed picture ---------- */
+.frame {
+  padding: 9px; border-radius: 2px; box-shadow: var(--shadow);
+  background: linear-gradient(145deg, var(--wood-hi), var(--wood-lo) 70%);
+}
+.frame .mat { background: #fbfbf8; padding: 7%; box-shadow: inset 0 1px 4px rgb(0 0 0 / .35); }
+.frame .pic { aspect-ratio: 16 / 10; display: grid; grid-template: 1fr 1fr / 2fr 1fr 1fr; gap: 2px; box-shadow: 0 0 0 1px rgb(0 0 0 / .2); overflow: hidden; }
+.frame.portrait .pic { aspect-ratio: 10 / 16; grid-template: 2fr 1fr 1fr / 1fr 1fr; }
+.frame .pic .ph:first-child { grid-row: span 2; }
+.frame.portrait .pic .ph:first-child { grid-column: span 2; grid-row: auto; }
+.frame.off .pic { filter: grayscale(1) brightness(.85); }
+.frame.mini { padding: 3px; box-shadow: none; }
+.frame.mini .mat { padding: 3px; }
+.frame.mini .pic { display: block; background: linear-gradient(135deg, hsl(200 30% 60%), hsl(30 40% 45%)); }
+
+.ph { background: linear-gradient(135deg, hsl(var(--h) 42% 66%), hsl(calc(var(--h) + 35) 48% 36%)); min-height: 0; position: relative; }
+
+/* ---------- 1 frames wall ---------- */
+.wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 44px 40px; align-items: end; }
+.hang { all: unset; cursor: pointer; display: block; }
+.hang .frame { transition: transform .2s ease; }
+.hang:hover .frame { transform: translateY(-3px); }
+.hang.portrait { max-width: 190px; justify-self: center; }
+.label { margin-top: 16px; padding: 10px 12px; background: var(--mat); border-left: 3px solid var(--brass); box-shadow: 0 1px 0 var(--rule); }
+.label h3 { font-family: var(--display); font-weight: 400; font-size: 20px; margin: 0 0 2px; }
+.label .mono { color: var(--ink-2); }
+.label .status { font-size: 13px; margin-top: 4px; }
+.found { border: 2px dashed var(--rule); border-radius: 6px; padding: 26px 20px; text-align: center; color: var(--ink-2); align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.found strong { color: var(--ink); font-weight: 700; }
+
+/* ---------- dialog ---------- */
+dialog { border: none; border-radius: 10px; padding: 0; background: var(--mat); color: var(--ink); width: min(460px, 92vw); box-shadow: 0 30px 60px -20px rgb(0 0 0 / .5); }
+dialog::backdrop { background: rgb(20 15 10 / .55); }
+dialog .in { padding: 26px 28px; }
+dialog h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 0 0 6px; }
+.code { display: flex; gap: 6px; margin: 20px 0 8px; }
+.code input { width: 100%; text-align: center; font: 22px var(--mono); padding: 10px 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--wall); }
+dialog footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 28px; border-top: 1px solid var(--rule); }
+
+/* ---------- 2 frame detail ---------- */
+.crumb { all: unset; cursor: pointer; color: var(--ink-2); font-size: 14px; margin-bottom: 14px; display: inline-block; }
+.crumb:hover { color: var(--ink); }
+.detail-head { display: flex; gap: 22px; align-items: center; margin-bottom: 22px; }
+.detail-head .frame { width: 132px; flex: none; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 18px; }
+.tab { all: unset; cursor: pointer; padding: 10px 16px; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--brass); }
+.tabpane { display: none; }
+.tabpane.on { display: block; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.toolbar .sel { font-weight: 700; margin-right: 8px; min-width: 110px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--mat); }
+.seg button { all: unset; cursor: pointer; padding: 7px 12px; font-size: 14px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--mat); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.tile { all: unset; cursor: pointer; aspect-ratio: 16 / 10; border-radius: 3px; position: relative; overflow: hidden; }
+.tile .ph { position: absolute; inset: 0; }
+.tile.hidden .ph { opacity: .35; }
+.tile[aria-pressed="true"] { outline: 3px solid var(--brass); outline-offset: -3px; }
+.tile[aria-pressed="true"]::after { content: "✓"; position: absolute; top: 5px; left: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--brass); color: var(--brass-ink); font: 700 13px/20px var(--ui); text-align: center; }
+.badge { position: absolute; right: 5px; bottom: 5px; font: 11px var(--mono); padding: 1px 6px; border-radius: 3px; background: rgb(0 0 0 / .62); color: #fff; }
+.badge.foreign { background: var(--foreign); }
+.legend { display: flex; gap: 18px; font-size: 13px; color: var(--ink-2); margin-top: 14px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+.list li:last-child { border-bottom: none; }
+.kind { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); width: 48px; }
+.list .n { margin-left: auto; }
+
+.form { display: grid; grid-template-columns: 230px 1fr; gap: 0; }
+.form > .row { display: contents; }
+.form .row > * { padding: 16px 18px; border-bottom: 1px solid var(--rule); }
+.form .row:last-child > * { border-bottom: none; }
+.form label.k { font-weight: 700; }
+.form label.k small { display: block; font-weight: 400; color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.form input[type=text], .form input[type=number], .form input[type=password], .form input[type=url] { border: 1px solid var(--rule); background: var(--wall); border-radius: 6px; padding: 7px 10px; width: min(420px, 100%); }
+.form input[type=number] { width: 110px; }
+.hint { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+.ok { color: var(--send); }
+.warn { color: var(--del); }
+.perm { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+.perm span::before { margin-right: 6px; }
+.perm .y::before { content: "✓"; color: var(--send); }
+.perm .n::before { content: "✕"; color: var(--del); }
+section.group-title { font: 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 30px 0 10px; }
+
+/* ---------- 3 matrix ---------- */
+.matrix-wrap { overflow: auto; max-height: calc(100vh - 230px); }
+table.matrix { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+.matrix th, .matrix td { padding: 9px 14px; border-bottom: 1px solid var(--rule); text-align: left; background: var(--mat); }
+.matrix thead th { position: sticky; top: 0; z-index: 1; vertical-align: bottom; font-weight: 400; }
+.matrix thead th.fr { text-align: center; width: 128px; }
+.matrix thead .frame { width: 56px; margin: 0 auto 8px; }
+.matrix thead .frame.portrait { width: 34px; }
+.matrix thead .fname { font-family: var(--display); font-size: 16px; }
+.matrix td.c { text-align: center; }
+.matrix input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brass); cursor: pointer; }
+.matrix tr.grp th { background: var(--wall-2); font: 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); position: sticky; top: 108px; }
+.matrix .indent { padding-left: 34px; }
+.matrix .indent::before { content: "└ "; color: var(--rule); }
+.matrix tfoot td { position: sticky; bottom: 0; background: var(--wall-2); border-top: 2px solid var(--ink); font-size: 13px; vertical-align: top; }
+.matrix tfoot .big { font-family: var(--display); font-size: 22px; display: block; }
+.matrix tfoot .over { color: var(--del); }
+.filterbar { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.filterbar input[type=search] { border: 1px solid var(--rule); background: var(--mat); border-radius: 6px; padding: 8px 12px; width: 280px; }
+
+/* ---------- 4 sync ---------- */
+.plans { display: grid; gap: 18px; }
+.plan { padding: 20px 22px; display: grid; grid-template-columns: 70px 1fr auto; gap: 6px 20px; align-items: start; }
+.plan .frame { width: 70px; grid-row: span 3; }
+.plan .frame.portrait { width: 46px; justify-self: center; }
+.plan h3 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0; }
+.plan .pick { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.plan .pick input { width: 18px; height: 18px; accent-color: var(--brass); }
+.bar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--wall-2); grid-column: 2 / 4; }
+.bar span { display: block; }
+.facts { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; }
+.facts b { font-family: var(--mono); font-weight: 500; }
+.facts i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.note { grid-column: 2 / 4; font-size: 14px; padding: 10px 12px; border-radius: 6px; background: var(--wall); }
+.decide { grid-column: 2 / 4; border: 1px solid var(--foreign); border-radius: 8px; padding: 14px 16px; }
+.decide h4 { margin: 0 0 4px; font-size: 15px; }
+.decide .strip { display: flex; gap: 4px; margin: 12px 0; overflow: hidden; }
+.decide .strip .ph { width: 64px; height: 40px; flex: none; border-radius: 2px; }
+.decide label { display: inline-flex; gap: 6px; align-items: center; margin-right: 18px; font-size: 14px; cursor: pointer; }
+.decide input { accent-color: var(--foreign); }
+.plan.offline { opacity: .65; }
+.sticky-go { position: fixed; left: 228px; right: 0; bottom: 0; display: flex; gap: 12px; align-items: center; padding: 14px 40px; background: var(--mat); border-top: 1px solid var(--rule); }
+.sticky-go .sum { margin-right: auto; }
+.prog { grid-column: 2 / 4; }
+.prog .track { height: 8px; background: var(--wall-2); border-radius: 4px; overflow: hidden; margin: 6px 0; }
+.prog .track span { display: block; height: 100%; background: var(--send); width: 40%; }
+.log { margin-top: 22px; padding: 14px 16px; font: 12.5px/1.7 var(--mono); max-height: 220px; overflow: auto; }
+.log .e { color: var(--del); }
+.log .w { color: var(--skip); }
+.state-switch { margin-left: 8px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; }
+  .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; padding: 10px 16px; }
+  .brand, .side .foot { display: none; }
+  main { padding: 20px 16px 140px; }
+  .sticky-go { left: 0; padding: 12px 16px; flex-wrap: wrap; }
+  .form { grid-template-columns: 1fr; }
+  .form .row > label.k { border-bottom: none; padding-bottom: 0; }
+  .plan { grid-template-columns: 1fr; }
+  .plan .frame { grid-row: auto; }
+  .bar, .facts, .note, .decide, .prog { grid-column: 1; }
+}
+</style>
+</head>
+<body>
+
+<nav class="side" aria-label="Hauptnavigation">
+  <div class="brand">Picture-Frame-Control<small>Immich → Frameo</small></div>
+  <button class="nav" data-view="frames" aria-current="page">Frames <span class="count">3</span></button>
+  <button class="nav" data-view="matrix">Zuordnung</button>
+  <button class="nav" data-view="sync">Sync <span class="count">2</span></button>
+  <button class="nav" data-view="settings">Einstellungen</button>
+  <div class="foot"><span class="dot"></span><b>Immich 3.3.5</b><br>photos.example.lan</div>
+</nav>
+
+<main>
+
+<!-- ============ 1 FRAMES ============ -->
+<section class="view on" id="view-frames">
+  <div class="head">
+    <div><h1>Frames</h1><p>Drei gekoppelte Frames, zwei davon erreichbar.</p></div>
+    <div class="actions">
+      <button class="btn">Im Netzwerk suchen</button>
+      <button class="btn primary" data-open="pair">Frame koppeln</button>
+    </div>
+  </div>
+
+  <div class="wall">
+    <button class="hang" data-goto="detail" aria-label="Wohnzimmer öffnen">
+      <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="4"></div></div></div>
+      <div class="label">
+        <h3>Wohnzimmer</h3>
+        <div class="mono">1280 × 800 · 360 Bilder</div>
+        <div class="status"><span class="dot"></span>Lokal verbunden · Sync heute, 09:14</div>
+      </div>
+    </button>
+
+    <button class="hang" data-goto="detail" aria-label="Küche öffnen">
+      <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="11"></div></div></div>
+      <div class="label">
+        <h3>Küche</h3>
+        <div class="mono">1280 × 800 · 188 Bilder</div>
+        <div class="status"><span class="dot relay"></span>Über Relay · Sync gestern, 18:02</div>
+      </div>
+    </button>
+
+    <button class="hang portrait" data-goto="detail" aria-label="Oma öffnen">
+      <div class="frame portrait off"><div class="mat"><div class="pic" data-ph="5" data-seed="23"></div></div></div>
+      <div class="label">
+        <h3>Oma</h3>
+        <div class="mono">800 × 1280 · hochkant · 96 Bilder</div>
+        <div class="status"><span class="dot off"></span>Nicht erreichbar · Sync vor 6 Tagen</div>
+      </div>
+    </button>
+
+    <div class="found">
+      <strong>Neuer Frame im Netzwerk</strong>
+      <span class="mono">frameo-7F3A · 192.168.1.48</span>
+      <span>Zum Koppeln den Code vom Display des Frames eingeben.</span>
+      <div><button class="btn" data-open="pair">Koppeln</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 FRAME DETAIL ============ -->
+<section class="view" id="view-detail">
+  <button class="crumb" data-goto="frames">← Frames</button>
+  <div class="detail-head">
+    <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="4"></div></div></div>
+    <div>
+      <div class="head" style="margin:0"><div><h1>Wohnzimmer</h1>
+        <p class="mono">1280 × 800 · 360 Bilder · 3 Quellen · <span class="dot"></span>lokal, 192.168.1.31</p></div></div>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="media">Bilder auf dem Frame</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="sources">Quellen</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="fsettings">Einstellungen</button>
+  </div>
+
+  <div class="tabpane on" id="tab-media">
+    <div class="toolbar">
+      <span class="sel" id="selcount">Keine Auswahl</span>
+      <button class="btn sel-act" disabled>Ausblenden</button>
+      <button class="btn sel-act" disabled>Einblenden</button>
+      <button class="btn sel-act" disabled>Herunterladen</button>
+      <button class="btn danger sel-act" disabled>Löschen</button>
+      <span style="flex:1"></span>
+      <div class="seg" role="group" aria-label="Filter">
+        <button aria-pressed="true">Alle</button><button aria-pressed="false">Aus Immich</button><button aria-pressed="false">Fremd</button><button aria-pressed="false">Ausgeblendet</button>
+      </div>
+      <button class="btn">Dateien senden…</button>
+    </div>
+    <div class="grid" id="mediagrid" data-tiles="30" data-seed="7" data-foreign="4,13,21" data-hidden="9,17" data-video="6,25"></div>
+    <div class="legend">
+      <span><i style="background:var(--foreign)"></i>Fremd: nicht von dieser App gesendet</span>
+      <span><i style="background:var(--keep);opacity:.5"></i>Ausgeblendet: liegt auf dem Frame, wird nicht gezeigt</span>
+    </div>
+  </div>
+
+  <div class="tabpane" id="tab-sources">
+    <div class="toolbar"><span class="muted">Diese Alben und Tags bilden zusammen die Bilderauswahl des Frames.</span><span style="flex:1"></span><button class="btn" data-goto="matrix">In der Zuordnung bearbeiten</button></div>
+    <ul class="list panel">
+      <li><span class="kind">Album</span>Urlaub Dänemark 2024<span class="n mono">214</span></li>
+      <li><span class="kind">Album</span>Kinder – Best of<span class="n mono">163</span></li>
+      <li><span class="kind">Tag</span>Familie / Großeltern<span class="n mono">58</span></li>
+    </ul>
+    <p class="hint">Zusammen 435 Assets, davon 23 doppelt und 9 Videos (ohne ffmpeg übersprungen). Ergebnis: 403 Bilder bei einem Limit von 500.</p>
+  </div>
+
+  <div class="tabpane" id="tab-fsettings">
+    <div class="form panel">
+      <div class="row"><label class="k" for="fn">Name</label><div><input id="fn" type="text" value="Wohnzimmer"></div></div>
+      <div class="row"><label class="k" for="lim">Höchstens senden<small>Darüber zählen die neuesten Bilder</small></label><div><input id="lim" type="number" value="500"> <span class="muted">Bilder</span></div></div>
+      <div class="row"><span class="k"><label class="k">Darstellung</label></span><div>
+        <div class="seg" role="group"><button aria-pressed="true">Zuschneiden</button><button aria-pressed="false">Einpassen</button></div>
+        <p class="hint">Zuschneiden füllt den ganzen Bildschirm, Ränder des Bildes gehen verloren. Einpassen zeigt das ganze Bild, mit Balken.</p></div></div>
+      <div class="row"><label class="k" for="rot">Hochkant aufgestellt<small>Tauscht Breite und Höhe</small></label><div><input id="rot" type="checkbox"> <label for="rot">Ziel: 800 × 1280 statt 1280 × 800</label></div></div>
+      <div class="row"><span class="k"><label class="k">Verbindung</label></span><div><div class="seg" role="group"><button aria-pressed="true">Automatisch</button><button aria-pressed="false">Nur lokal</button><button aria-pressed="false">Nur Relay</button></div></div></div>
+      <div class="row"><span class="k"><label class="k">Berechtigungen<small>Erteilt am Frame selbst</small></label></span><div>
+        <div class="perm"><span class="y">Senden</span><span class="y">Ansehen</span><span class="n">Verwalten</span><button class="btn">Verwalten anfragen</button></div>
+        <p class="hint warn">Ohne „Verwalten“ kann der Sync nichts löschen. Nach dem Anfragen am Frame auf „Erlauben“ tippen.</p></div></div>
+      <div class="row"><span class="k"><label class="k">Neu aufbereiten<small>Nach geänderten Einstellungen</small></label></span><div><button class="btn">Alle Bilder neu aufbereiten und senden</button><p class="hint">Ersetzt die 357 von dieser App gesendeten Bilder. Dauert je nach Verbindung länger.</p></div></div>
+      <div class="row"><span class="k"><label class="k">Frame entfernen</label></span><div><button class="btn danger">Frame vergessen</button><p class="hint">Die Bilder bleiben auf dem Frame. Für neues Senden muss der Frame neu gekoppelt werden.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 MATRIX ============ -->
+<section class="view" id="view-matrix">
+  <div class="head">
+    <div><h1>Zuordnung</h1><p>Welche Alben und Tags auf welchen Frame kommen.</p></div>
+    <div class="actions"><button class="btn">Aus Immich neu laden</button><button class="btn primary">Speichern</button></div>
+  </div>
+  <div class="filterbar">
+    <input type="search" placeholder="Alben und Tags durchsuchen" aria-label="Suchen">
+    <label><input type="checkbox"> Nur zugeordnete zeigen</label>
+    <span class="muted" style="margin-left:auto">38 Alben · 21 Tags</span>
+  </div>
+  <div class="matrix-wrap panel">
+    <table class="matrix">
+      <thead><tr>
+        <th>Quelle</th><th class="mono">Assets</th>
+        <th class="fr"><div class="frame mini"><div class="mat"><div class="pic"></div></div></div><span class="fname">Wohnzimmer</span></th>
+        <th class="fr"><div class="frame mini"><div class="mat"><div class="pic"></div></div></div><span class="fname">Küche</span></th>
+        <th class="fr"><div class="frame mini portrait"><div class="mat"><div class="pic" style="aspect-ratio:10/16"></div></div></div><span class="fname">Oma</span></th>
+      </tr></thead>
+      <tbody>
+        <tr class="grp"><th colspan="5">Alben</th></tr>
+        <tr><td>Urlaub Dänemark 2024</td><td class="mono">214</td><td class="c"><input type="checkbox" checked aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" aria-label="Küche"></td><td class="c"><input type="checkbox" checked aria-label="Oma"></td></tr>
+        <tr><td>Kinder – Best of</td><td class="mono">163</td><td class="c"><input type="checkbox" checked aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" checked aria-label="Küche"></td><td class="c"><input type="checkbox" checked aria-label="Oma"></td></tr>
+        <tr><td>Garten 2025</td><td class="mono">88</td><td class="c"><input type="checkbox" aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" checked aria-label="Küche"></td><td class="c"><input type="checkbox" aria-label="Oma"></td></tr>
+        <tr><td>Weihnachten</td><td class="mono">131</td><td class="c"><input type="checkbox" aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" aria-label="Küche"></td><td class="c"><input type="checkbox" aria-label="Oma"></td></tr>
+        <tr><td>Hochzeit Anna &amp; Jonas <span class="muted">· geteilt</span></td><td class="mono">402</td><td class="c"><input type="checkbox" aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" aria-label="Küche"></td><td class="c"><input type="checkbox" aria-label="Oma"></td></tr>
+        <tr class="grp"><th colspan="5">Tags</th></tr>
+        <tr><td>Familie</td><td class="mono">1.284</td><td class="c"><input type="checkbox" aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" aria-label="Küche"></td><td class="c"><input type="checkbox" aria-label="Oma"></td></tr>
+        <tr><td class="indent">Großeltern</td><td class="mono">58</td><td class="c"><input type="checkbox" checked aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" aria-label="Küche"></td><td class="c"><input type="checkbox" checked aria-label="Oma"></td></tr>
+        <tr><td class="indent">Kinder</td><td class="mono">611</td><td class="c"><input type="checkbox" aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" aria-label="Küche"></td><td class="c"><input type="checkbox" aria-label="Oma"></td></tr>
+        <tr><td>Rahmen-tauglich</td><td class="mono">97</td><td class="c"><input type="checkbox" aria-label="Wohnzimmer"></td><td class="c"><input type="checkbox" checked aria-label="Küche"></td><td class="c"><input type="checkbox" aria-label="Oma"></td></tr>
+      </tbody>
+      <tfoot><tr>
+        <td colspan="2"><b>Ergebnis je Frame</b><br><span class="muted">Doppelte nur einmal gezählt</span></td>
+        <td class="c"><span class="big">403</span>von 500<br><span class="muted">9 Videos übersprungen</span></td>
+        <td class="c"><span class="big">331</span>von 300<br><span class="over">31 über dem Limit</span></td>
+        <td class="c"><span class="big">403</span>kein Limit<br><span class="muted">9 Videos übersprungen</span></td>
+      </tr></tfoot>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 4 SYNC ============ -->
+<section class="view" id="view-sync">
+  <div class="head">
+    <div><h1>Sync</h1><p id="sync-sub">Vorschau: Das passiert beim nächsten Sync. Noch wurde nichts geändert.</p></div>
+    <div class="actions">
+      <div class="seg state-switch" role="group" aria-label="Mockup-Zustand">
+        <button aria-pressed="true" data-state="preview">Vorschau</button><button aria-pressed="false" data-state="running">Läuft</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="plans" id="plans-preview">
+    <article class="plan panel">
+      <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="4"></div></div></div>
+      <h3>Wohnzimmer</h3>
+      <label class="pick"><input type="checkbox" checked> Mitsyncen</label>
+      <div class="bar"><span style="flex:345;background:var(--keep)"></span><span style="flex:58;background:var(--send)"></span><span style="flex:12;background:var(--del)"></span><span style="flex:3;background:var(--foreign)"></span></div>
+      <div class="facts">
+        <span><i style="background:var(--keep)"></i>Bleibt <b>345</b></span>
+        <span><i style="background:var(--send)"></i>Senden <b>58</b> <span class="muted">≈ 9,6 MB</span></span>
+        <span><i style="background:var(--del)"></i>Löschen <b>12</b> <span class="muted">nicht mehr ausgewählt</span></span>
+        <span><i style="background:var(--foreign)"></i>Fremd <b>3</b> <span class="muted">behalten, wie beim letzten Sync · <a href="#">ändern</a></span></span>
+        <span><i style="background:var(--skip)"></i>Übersprungen <b>9</b> <span class="muted">Videos</span></span>
+      </div>
+      <div class="note">9 Videos werden übersprungen, weil ffmpeg nicht eingerichtet ist. <a href="#" data-goto="settings">ffmpeg einrichten</a></div>
+    </article>
+
+    <article class="plan panel">
+      <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="11"></div></div></div>
+      <h3>Küche</h3>
+      <label class="pick"><input type="checkbox" checked> Mitsyncen</label>
+      <div class="bar"><span style="flex:170;background:var(--keep)"></span><span style="flex:130;background:var(--send)"></span><span style="flex:4;background:var(--del)"></span><span style="flex:14;background:var(--foreign)"></span></div>
+      <div class="facts">
+        <span><i style="background:var(--keep)"></i>Bleibt <b>170</b></span>
+        <span><i style="background:var(--send)"></i>Senden <b>130</b> <span class="muted">≈ 4,1 MB</span></span>
+        <span><i style="background:var(--del)"></i>Löschen <b>4</b> <span class="muted">in Immich geändert, werden ersetzt</span></span>
+        <span><i style="background:var(--foreign)"></i>Fremd <b>14</b></span>
+        <span class="warn">Über dem Limit <b>31</b> <span class="muted">ältere werden nicht gesendet</span></span>
+      </div>
+      <div class="decide">
+        <h4>14 Bilder auf dem Frame stammen nicht aus dieser App</h4>
+        <span class="muted">Zum Beispiel per Frameo-App vom Handy gesendet.</span>
+        <div class="strip" data-ph="14" data-seed="31"></div>
+        <label><input type="radio" name="fk" checked> Behalten</label>
+        <label><input type="radio" name="fk"> Alle 14 löschen</label>
+        <label><input type="radio" name="fk"> Einzeln auswählen…</label>
+      </div>
+    </article>
+
+    <article class="plan panel offline">
+      <div class="frame portrait off"><div class="mat"><div class="pic" data-ph="5" data-seed="23"></div></div></div>
+      <h3>Oma</h3>
+      <label class="pick"><input type="checkbox" disabled> Mitsyncen</label>
+      <div class="note">Nicht erreichbar, weder lokal noch über Relay. Ist der Frame eingeschaltet und mit dem WLAN verbunden?</div>
+    </article>
+  </div>
+
+  <div class="plans" id="plans-running" hidden>
+    <article class="plan panel">
+      <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="4"></div></div></div>
+      <h3>Wohnzimmer</h3>
+      <span class="mono muted">Senden</span>
+      <div class="prog">
+        <div class="track"><span style="width:40%"></span></div>
+        <div class="mono">23 von 58 gesendet · 2024-08-14 Strand Løkken → WebP 1280 × 800 · 162 KB</div>
+        <div class="mono muted">12 gelöscht · noch etwa 3 Minuten</div>
+      </div>
+    </article>
+    <article class="plan panel">
+      <div class="frame"><div class="mat"><div class="pic" data-ph="5" data-seed="11"></div></div></div>
+      <h3>Küche</h3>
+      <span class="mono muted">Wartet</span>
+      <div class="prog"><div class="track"><span style="width:0"></span></div><div class="mono muted">Startet nach Wohnzimmer</div></div>
+    </article>
+    <div class="log panel" aria-label="Protokoll">
+      09:41:02 Wohnzimmer · lokal verbunden (192.168.1.31)<br>
+      09:41:03 Wohnzimmer · 12 Bilder gelöscht<br>
+      09:41:05 Wohnzimmer · IMG_2231 gesendet (148 KB)<br>
+      <span class="w">09:41:09 Wohnzimmer · IMG_2240 Fullsize fehlt in Immich, Preview verwendet</span><br>
+      09:41:11 Wohnzimmer · IMG_2240 gesendet (121 KB)<br>
+      <span class="e">09:41:20 Wohnzimmer · IMG_2257 fehlgeschlagen: Zeitüberschreitung beim Bestätigen, wird beim nächsten Sync erneut gesendet</span><br>
+      09:41:22 Wohnzimmer · IMG_2263 gesendet (170 KB)
+    </div>
+  </div>
+
+  <div class="sticky-go" id="go-preview">
+    <span class="sum"><b>2 Frames</b> · 188 senden · 16 löschen · ≈ 13,7 MB</span>
+    <button class="btn">Vorschau aktualisieren</button>
+    <button class="btn primary">Sync starten</button>
+  </div>
+  <div class="sticky-go" id="go-running" style="display:none">
+    <span class="sum"><b>Wohnzimmer</b> · 23 von 58 gesendet · danach Küche</span>
+    <button class="btn danger">Sync abbrechen</button>
+  </div>
+</section>
+
+<!-- ============ 5 SETTINGS ============ -->
+<section class="view" id="view-settings">
+  <div class="head"><div><h1>Einstellungen</h1></div></div>
+
+  <section class="group-title">Immich</section>
+  <div class="form panel">
+    <div class="row"><label class="k" for="iu">Server-Adresse</label><div><input id="iu" type="url" value="https://photos.example.lan"></div></div>
+    <div class="row"><label class="k" for="ik">API-Key<small>Verschlüsselt gespeichert</small></label><div><input id="ik" type="password" value="xxxxxxxxxxxxxxxxxxxxxxxx"> <button class="btn">Verbindung testen</button><p class="hint ok">Verbunden mit Immich 3.3.5 als „daniel“.</p></div></div>
+  </div>
+
+  <section class="group-title">Werkzeuge</section>
+  <div class="form panel">
+    <div class="row"><label class="k" for="im">ImageMagick<small>Für kleinere WebP-Dateien</small></label><div><input id="im" type="text" value="C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\magick.exe"> <button class="btn">Suchen</button><p class="hint ok">Gefunden: ImageMagick 7.1.2-8. Bilder werden als WebP in Frame-Auflösung gesendet.</p></div></div>
+    <div class="row"><label class="k" for="ff">ffmpeg<small>Für Videos</small></label><div><input id="ff" type="text" placeholder="Pfad zu ffmpeg.exe"> <button class="btn">Suchen</button><p class="hint">Nicht eingerichtet. Videos werden beim Sync übersprungen.</p></div></div>
+    <div class="row"><label class="k" for="q">WebP-Qualität</label><div><input id="q" type="range" min="50" max="95" value="82"> <span class="mono">82</span><p class="hint">Bei 82 etwa 150 KB pro Bild in 1280 × 800.</p></div></div>
+    <div class="row"><label class="k" for="crf">Video-Qualität (CRF)<small>Kleiner = besser, größer</small></label><div><input id="crf" type="number" value="28"></div></div>
+  </div>
+
+  <section class="group-title">Zwischenspeicher</section>
+  <div class="form panel">
+    <div class="row"><span class="k"><label class="k">Aufbereitete Dateien</label></span><div><span class="mono">1,2 GB · 4.810 Dateien</span> <button class="btn">Leeren</button><p class="hint">Wird beim nächsten Sync bei Bedarf neu erzeugt.</p></div></div>
+  </div>
+
+  <section class="group-title">Identität</section>
+  <div class="form panel">
+    <div class="row"><label class="k" for="cn">Absendername<small>So erscheinen deine Bilder am Frame</small></label><div><input id="cn" type="text" value="anna@desktop"></div></div>
+    <div class="row"><span class="k"><label class="k">Schlüssel</label></span><div>
+      <button class="btn">Sichern…</button> <button class="btn">Aus unframeo übernehmen…</button>
+      <p class="hint warn">Geht der Schlüssel verloren, muss jeder Frame vor Ort neu gekoppelt werden. Lege eine Sicherung an.</p></div></div>
+  </div>
+</section>
+
+</main>
+
+<dialog id="pair">
+  <form method="dialog">
+    <div class="in">
+      <h2>Frame koppeln</h2>
+      <p class="muted">Am Frame „Freund hinzufügen“ wählen und den angezeigten Code hier eingeben.</p>
+      <div class="code"><input inputmode="numeric" value="482 193 07" aria-label="Kopplungscode" autofocus></div>
+      <p class="hint">Danach übernimmt die App Name, Auflösung und Berechtigungen vom Frame.</p>
+    </div>
+    <footer><button class="btn" value="cancel">Abbrechen</button><button class="btn primary" value="ok">Koppeln</button></footer>
+  </form>
+</dialog>
+
+<div class="mockflag">Mockup · Beispieldaten</div>
+
+<script>
+// Mockup behaviour only: view switching, tabs, placeholder photos, selection.
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const hue = (seed, i) => (seed * 47 + i * 67) % 360;
+
+function show(view) {
+  $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
+  const nav = view === 'detail' ? 'frames' : view;
+  $$('.nav').forEach(n => n.dataset.view === nav ? n.setAttribute('aria-current', 'page') : n.removeAttribute('aria-current'));
+  const run = !$('#plans-running').hidden;
+  $('#go-preview').style.display = view === 'sync' && !run ? '' : 'none';
+  $('#go-running').style.display = view === 'sync' && run ? '' : 'none';
+  scrollTo(0, 0);
+}
+$$('.nav').forEach(n => n.onclick = () => show(n.dataset.view));
+$$('[data-goto]').forEach(b => b.onclick = e => { e.preventDefault(); show(b.dataset.goto); });
+$$('[data-open]').forEach(b => b.onclick = () => $('#' + b.dataset.open).showModal());
+
+$$('.tab').forEach(t => t.onclick = () => {
+  $$('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  $$('.tabpane').forEach(p => p.classList.toggle('on', p.id === 'tab-' + t.dataset.tab));
+});
+$$('.seg').forEach(g => $$('button', g).forEach(b => b.addEventListener('click', () =>
+  $$('button', g).forEach(x => x.setAttribute('aria-pressed', x === b)))));
+
+$$('[data-state]').forEach(b => b.addEventListener('click', () => {
+  const run = b.dataset.state === 'running';
+  $('#plans-preview').hidden = run; $('#plans-running').hidden = !run;
+  $('#go-preview').style.display = run ? 'none' : '';
+  $('#go-running').style.display = run ? '' : 'none';
+  $('#sync-sub').textContent = run ? 'Sync läuft. Fortschritt wird nach jedem Bild gespeichert, Abbrechen ist jederzeit möglich.' : 'Vorschau: Das passiert beim nächsten Sync. Noch wurde nichts geändert.';
+}));
+
+$$('[data-ph]').forEach(el => {
+  for (let i = 0; i < +el.dataset.ph; i++) {
+    const d = document.createElement('div'); d.className = 'ph'; d.style.setProperty('--h', hue(+el.dataset.seed, i)); el.append(d);
+  }
+});
+
+const g = $('#mediagrid'), list = k => (g.dataset[k] || '').split(',').map(Number);
+for (let i = 0; i < +g.dataset.tiles; i++) {
+  const t = document.createElement('button'); t.className = 'tile'; t.setAttribute('aria-pressed', 'false');
+  t.innerHTML = `<div class="ph" style="--h:${hue(+g.dataset.seed, i)}"></div>`;
+  if (list('foreign').includes(i)) t.insertAdjacentHTML('beforeend', '<span class="badge foreign">Fremd</span>');
+  if (list('hidden').includes(i)) { t.classList.add('hidden'); t.insertAdjacentHTML('beforeend', '<span class="badge">Ausgeblendet</span>'); }
+  if (list('video').includes(i)) t.insertAdjacentHTML('beforeend', '<span class="badge">▶ 0:14</span>');
+  t.setAttribute('aria-label', 'Bild ' + (i + 1));
+  t.onclick = () => {
+    t.setAttribute('aria-pressed', t.getAttribute('aria-pressed') !== 'true');
+    const n = $$('.tile[aria-pressed="true"]').length;
+    $('#selcount').textContent = n ? `${n} ausgewählt` : 'Keine Auswahl';
+    $$('.sel-act').forEach(b => b.disabled = !n);
+  };
+  g.append(t);
+}
+show('frames');
+</script>
+</body>
+</html>
