@@ -28,7 +28,7 @@ Windows-Desktop-App (Go + Wails v3), die
 | ID | Anforderung |
 |---|---|
 | F-01 | Frames im LAN finden (mDNS) und anzeigen |
-| F-02 | Frame koppeln per Code vom Frame-Display. Name und native Auflösung (aus `info`) speichern |
+| F-02 | Frame koppeln per Code vom Frame-Display. Name, Standort und native Auflösung (aus `info`) speichern. Ohne eigenen Namen zeigt die App den Standort vom Frame an, sonst dessen Namen. Bei Frameo ist der „Name“ der Besitzer |
 | F-03 | Gekoppelte Frames auflisten, umbenennen und entfernen ("forget") |
 | F-04 | Frame-Info anzeigen: Name, Auflösung, Berechtigungen, Verbindungsweg (lokal/Relay) |
 | F-05 | Berechtigung "Ansehen/Verwalten" am Frame anfragen. Status anzeigen |
@@ -67,6 +67,7 @@ Windows-Desktop-App (Go + Wails v3), die
 | S-09 | Fehler 12 "frame limit reached" erkennen. Sync für diesen Frame stoppen und melden |
 | S-10 | Optionales Limit je Frame (Anzahl und/oder MB). Bei Überschreitung oder Fehler 12: neueste zuerst (Aufnahmedatum absteigend). Der Rest erscheint in der Vorschau als "nicht gesendet" |
 | S-11 | Sync nur manuell auslösen, je Frame oder für alle. Kein automatischer Sync |
+| S-12 | Optional je Frame: Albumname als Bildunterschrift. Bei mehreren gewählten Alben das kleinste. Bilder, die nur über einen Tag kommen, bleiben ohne Unterschrift. Eine geänderte Unterschrift sendet das Bild neu |
 
 ### 3.4 Medienaufbereitung
 

@@ -7,7 +7,7 @@
   import FrameArt from '../lib/FrameArt.svelte'
   import { ImmichService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import type { Selection } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
-  import { app, errText, loadFrames, loadSources, notify, probe, screenOf, sourceIds, statusLine, type Frame } from '../lib/state.svelte'
+  import { aboutOf, app, errText, loadFrames, loadSources, nameOf, notify, probe, screenOf, sourceIds, statusLine, type Frame } from '../lib/state.svelte'
 
   let { id, onback, onassign }: { id: string; onback: () => void; onassign: () => void } = $props()
 
@@ -128,11 +128,15 @@
   // ---- settings ----
   // The form starts from the saved values and is not reset while editing,
   // even when the frame list reloads underneath it.
-  const formOf = (f?: Frame) => ({ name: f?.name ?? '', limit: f?.limit ?? 0, scale: f?.scale ?? 'crop', rotate: f?.rotate ?? false, mode: f?.mode ?? 'auto' })
+  const formOf = (f?: Frame) => ({
+    name: f?.name ?? '', limit: f?.limit ?? 0, scale: f?.scale ?? 'crop', rotate: f?.rotate ?? false, mode: f?.mode ?? 'auto', caption: f?.caption ?? '',
+  })
   let form = $state(formOf(app.frames.find((f) => f.id === id)))
+  const fromFrame = $derived(frame ? frame.place || frame.frameName : '') // what an empty name falls back to
   const dirty = $derived(
     !!frame &&
-      (form.name !== frame.name || form.limit !== frame.limit || form.scale !== frame.scale || form.rotate !== frame.rotate || form.mode !== frame.mode),
+      (form.name.trim() !== frame.name || form.limit !== frame.limit || form.scale !== frame.scale ||
+        form.rotate !== frame.rotate || form.mode !== frame.mode || form.caption !== frame.caption),
   )
   let asking = $state<'' | 'view' | 'manage'>('')
 
@@ -161,11 +165,13 @@
   }
 
   async function forget() {
-    if (!frame || !confirm(`„${frame.name}“ aus der App entfernen? Die Bilder bleiben auf dem Frame. Zum erneuten Senden muss er neu gekoppelt werden.`)) return
+    if (!frame) return
+    const name = nameOf(frame)
+    if (!confirm(`„${name}“ aus der App entfernen? Die Bilder bleiben auf dem Frame. Zum erneuten Senden muss er neu gekoppelt werden.`)) return
     try {
       await FrameService.Forget(id)
       await loadFrames()
-      notify(`„${frame.name}“ entfernt.`)
+      notify(`„${name}“ entfernt.`)
       onback()
     } catch (e) {
       notify(errText(e), 'error')
@@ -181,7 +187,8 @@
   <div class="detail-head">
     <div class="art"><FrameArt {frame} recent={status?.recent} dim={status !== undefined && !status.online} /></div>
     <div>
-      <h1>{frame.name}</h1>
+      <h1>{nameOf(frame)}</h1>
+      {#if aboutOf(frame)}<p class="place muted">{aboutOf(frame)}</p>{/if}
       <p class="mono muted">
         {s.w ? `${s.w} × ${s.h}` : 'Auflösung unbekannt'}
         {#if status && status.count >= 0}· {status.count} Bilder{/if}
@@ -289,7 +296,31 @@
     {/if}
   {:else}
     <form class="form panel" onsubmit={save}>
-      <div class="row"><label class="k" for="fn">Name</label><div><input id="fn" type="text" bind:value={form.name} required /></div></div>
+      <div class="row">
+        <label class="k" for="fn">Name<small>Leer: der Standort vom Frame</small></label>
+        <div>
+          <input id="fn" type="text" bind:value={form.name} placeholder={fromFrame || 'Vom Frame noch unbekannt'} />
+          {#if form.name && fromFrame}
+            <button type="button" class="link" onclick={() => (form.name = '')}>Vom Frame übernehmen („{fromFrame}“)</button>
+          {/if}
+          {#if frame.place || frame.frameName}
+            <p class="hint">Laut Frame: {[frame.place && `Standort ${frame.place}`, frame.frameName && `Besitzer ${frame.frameName}`].filter(Boolean).join(' · ')}</p>
+          {/if}
+        </div>
+      </div>
+      <div class="row">
+        <span class="k">Bildunterschrift<small>Wird mit jedem Bild gesendet</small></span>
+        <div>
+          <div class="seg" role="group" aria-label="Bildunterschrift">
+            <button type="button" aria-pressed={form.caption === ''} onclick={() => (form.caption = '')}>Keine</button>
+            <button type="button" aria-pressed={form.caption === 'album'} onclick={() => (form.caption = 'album')}>Albumname</button>
+          </div>
+          <p class="hint">
+            Liegt ein Bild in mehreren der gewählten Alben, steht dort das kleinste. Bilder, die nur über einen Tag kommen, bleiben ohne Unterschrift.
+            {#if form.caption !== frame.caption}<br /><span class="warn">Nach dem Speichern sendet der nächste Sync die betroffenen Bilder neu.</span>{/if}
+          </p>
+        </div>
+      </div>
       <div class="row">
         <label class="k" for="lim">Höchstens senden<small>0 = kein Limit. Darüber zählen die neuesten Bilder</small></label>
         <div><input id="lim" type="number" min="0" bind:value={form.limit} /> <span class="muted">Bilder</span></div>
@@ -365,6 +396,7 @@
   .art { width: 132px; flex: none; }
   h1 { font-family: var(--display); font-weight: 400; font-size: 38px; line-height: 1; margin: 0 0 6px; }
   .detail-head p { margin: 0; }
+  .detail-head .place { margin: -2px 0 6px; }
   .send { margin-left: auto; align-self: flex-start; }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 18px; }
   .tabs button { all: unset; cursor: pointer; padding: 10px 16px; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }

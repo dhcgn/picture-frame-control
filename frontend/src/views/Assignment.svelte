@@ -4,7 +4,7 @@
   import { ImmichService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import type { Selection } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
   import FrameArt from '../lib/FrameArt.svelte'
-  import { app, errText, isPortrait, loadFrames, loadSources, notify, sourceIds, type Frame, type Source } from '../lib/state.svelte'
+  import { app, errText, isPortrait, loadFrames, loadSources, nameOf, notify, sourceIds, type Frame, type Source } from '../lib/state.svelte'
 
   let { onsettings, onframes }: { onsettings: () => void; onframes: () => void } = $props()
 
@@ -154,7 +154,7 @@
           {#each app.frames as f (f.id)}
             <th class="fr">
               <div class="mini" class:portrait={isPortrait(f)}><FrameArt frame={f} mini /></div>
-              <span class="fname">{f.name}</span>
+              <span class="fname">{nameOf(f)}</span>
             </th>
           {/each}
         </tr>
@@ -174,7 +174,7 @@
                 <td class="num mono">{s.count >= 0 ? n(s.count) : '–'}</td>
                 {#each app.frames as f (f.id)}
                   <td class="c">
-                    <input type="checkbox" aria-label={`${s.name} auf ${f.name}`} checked={picks[f.id]?.has(s.id)} onchange={() => toggle(f.id, s.id)} />
+                    <input type="checkbox" aria-label={`${s.name} auf ${nameOf(f)}`} checked={picks[f.id]?.has(s.id)} onchange={() => toggle(f.id, s.id)} />
                   </td>
                 {/each}
               </tr>

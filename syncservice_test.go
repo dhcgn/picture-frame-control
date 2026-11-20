@@ -26,6 +26,8 @@ import (
 func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 	immichSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/api/albums":
+			_, _ = w.Write([]byte(`[{"id":"big","albumName":"Best of","assetCount":900},{"id":"album","albumName":"Ostsee 2024","assetCount":3}]`))
 		case r.URL.Path == "/api/search/metadata":
 			_, _ = w.Write([]byte(`{"assets":{"items":[
 				{"id":"old","type":"IMAGE","checksum":"c1","fileCreatedAt":"2024-05-01T10:00:00.000Z","originalFileName":"old.jpg"},
@@ -50,7 +52,10 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = st.Update(func(c *store.Config) error { c.ImmichServer = immichSrv.URL; return nil })
-	_ = st.UpdateFrame(f.ID, func(fr *store.Frame) { fr.Sources.Albums = []string{"album"} })
+	_ = st.UpdateFrame(f.ID, func(fr *store.Frame) {
+		fr.Sources.Albums = []string{"big", "album"} // the fake puts every photo in both
+		fr.Caption = "album"
+	})
 
 	var mu sync.Mutex
 	var logs []string
@@ -85,6 +90,10 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 	want := time.Date(2024, 6, 1, 10, 0, 0, 0, time.UTC).UnixMilli()
 	if len(photos) != 2 || photos[0].Media.GetCaptureDate() != want {
 		t.Fatalf("frame got %d photos, first taken %d; want 2, newest (%d) first", len(photos), photos[0].Media.GetCaptureDate(), want)
+	}
+	// In both albums, the photo is captioned with the smaller one.
+	if c := photos[0].Media.GetCaption(); c != "Ostsee 2024" {
+		t.Errorf("caption = %q, want the smaller album's name", c)
 	}
 
 	m, _ := syncplan.Load(s.manifestPath(f.ID))

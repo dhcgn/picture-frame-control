@@ -204,11 +204,7 @@ func (s *FrameService) Probe(ctx context.Context, id string) (FrameStatus, error
 		}
 		st.CanView = frameo.Granted(info, frameo.PermissionView)
 		st.CanManage = frameo.Granted(info, frameo.PermissionManage)
-		if err := s.store.UpdateFrame(id, func(f *store.Frame) {
-			f.Screen = store.Size{W: int(info.GetScreenWidth()), H: int(info.GetScreenHeight())}
-			caps := info.GetFrameCapabilities()
-			f.MaxVideo = store.Size{W: int(caps.GetMaxVideoWidth()), H: int(caps.GetMaxVideoHeight())}
-		}); err != nil {
+		if err := s.store.UpdateFrame(id, func(f *store.Frame) { learn(f, info) }); err != nil {
 			return err
 		}
 		if !st.CanView {
@@ -231,6 +227,15 @@ func (s *FrameService) Probe(ctx context.Context, id string) (FrameStatus, error
 	}
 	st.Online, st.Via = true, string(via)
 	return st, nil
+}
+
+// learn copies what the frame says about itself into its stored record.
+func learn(f *store.Frame, info *pb.FrameInfo) {
+	f.FrameName = info.GetName()
+	f.Place = info.GetPlacement()
+	f.Screen = store.Size{W: int(info.GetScreenWidth()), H: int(info.GetScreenHeight())}
+	caps := info.GetFrameCapabilities()
+	f.MaxVideo = store.Size{W: int(caps.GetMaxVideoWidth()), H: int(caps.GetMaxVideoHeight())}
 }
 
 func sortNewestFirst(items []*pb.MediaMetaData) {
@@ -266,8 +271,8 @@ func (s *FrameService) Discover(ctx context.Context) ([]Discovered, error) {
 	return out, nil
 }
 
-// Pair pairs with the frame showing code. Without a name, the frame's own name
-// is used once it answers.
+// Pair pairs with the frame showing code. Without a name, the app follows the
+// name the frame reports.
 func (s *FrameService) Pair(ctx context.Context, code, name string) (store.Frame, error) {
 	id, err := s.store.Identity()
 	if err != nil {
@@ -279,44 +284,37 @@ func (s *FrameService) Pair(ctx context.Context, code, name string) (store.Frame
 	if err != nil {
 		return store.Frame{}, err
 	}
-	name = strings.TrimSpace(name)
-	f := store.NewFrame(peer, cmp.Or(name, "Frame "+peer.String()[:6]))
+	f := store.NewFrame(peer, strings.TrimSpace(name))
 	if err := s.store.AddFrame(f); err != nil {
 		return store.Frame{}, err
 	}
-	// Fill in screen size and, unless the user chose a name, the frame's own.
+	// Learn the frame's name, place and screen size right away.
 	_, _ = s.do(ctx, f.ID, true, func(c *frameo.Client) error {
 		info, err := c.GetInfo(ctx)
 		if err != nil {
 			return err
 		}
-		return s.store.UpdateFrame(f.ID, func(sf *store.Frame) {
-			if name == "" && info.GetName() != "" {
-				sf.Name = info.GetName()
-			}
-			sf.Screen = store.Size{W: int(info.GetScreenWidth()), H: int(info.GetScreenHeight())}
-			caps := info.GetFrameCapabilities()
-			sf.MaxVideo = store.Size{W: int(caps.GetMaxVideoWidth()), H: int(caps.GetMaxVideoHeight())}
-		})
+		return s.store.UpdateFrame(f.ID, func(sf *store.Frame) { learn(sf, info) })
 	})
 	return s.store.Frame(f.ID)
 }
 
 // FrameSettings are the per-frame options the user edits.
 type FrameSettings struct {
-	Name   string `json:"name"`
-	Limit  int    `json:"limit"`
-	Scale  string `json:"scale"`
-	Rotate bool   `json:"rotate"`
-	Mode   string `json:"mode"`
+	Name    string `json:"name"` // empty follows the frame's own name
+	Limit   int    `json:"limit"`
+	Scale   string `json:"scale"`
+	Rotate  bool   `json:"rotate"`
+	Mode    string `json:"mode"`
+	Caption string `json:"caption"`
 }
 
 // UpdateSettings saves a frame's options.
 func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame, error) {
 	name := strings.TrimSpace(fs.Name)
 	switch {
-	case name == "":
-		return store.Frame{}, errors.New("Der Name darf nicht leer sein")
+	case fs.Caption != "" && fs.Caption != "album":
+		return store.Frame{}, fmt.Errorf("unbekannte Bildunterschrift %q", fs.Caption)
 	case fs.Limit < 0:
 		return store.Frame{}, errors.New("Das Limit darf nicht negativ sein")
 	case fs.Scale != "crop" && fs.Scale != "fit":
@@ -329,7 +327,7 @@ func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame,
 		return store.Frame{}, err
 	}
 	if err := s.store.UpdateFrame(id, func(f *store.Frame) {
-		f.Name, f.Limit, f.Scale, f.Rotate, f.Mode = name, fs.Limit, fs.Scale, fs.Rotate, fs.Mode
+		f.Name, f.Limit, f.Scale, f.Rotate, f.Mode, f.Caption = name, fs.Limit, fs.Scale, fs.Rotate, fs.Mode, fs.Caption
 	}); err != nil {
 		return store.Frame{}, err
 	}

@@ -4,7 +4,7 @@
   import type { Discovered } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
   import FrameArt from '../lib/FrameArt.svelte'
   import PairDialog from '../lib/PairDialog.svelte'
-  import { app, errText, isPortrait, loadFrames, notify, probe, probeAll, screenOf, statusLine, type Frame } from '../lib/state.svelte'
+  import { aboutOf, app, errText, isPortrait, loadFrames, nameOf, notify, probe, probeAll, screenOf, statusLine, type Frame } from '../lib/state.svelte'
 
   let { onopen }: { onopen: (id: string) => void } = $props()
 
@@ -43,7 +43,7 @@
     await loadFrames()
     probe(f.id)
     found = found?.filter((d) => d.pairedId !== f.id) ?? null
-    notify(`Mit „${f.name}“ gekoppelt.`)
+    notify(`Mit „${nameOf(app.frames.find((x) => x.id === f.id) ?? f)}“ gekoppelt.`)
   }
 
   async function importUnframeo() {
@@ -83,10 +83,11 @@
   {#each app.frames as f (f.id)}
     {@const st = app.status[f.id]}
     {@const line = statusLine(st)}
-    <button class="hang" class:portrait={isPortrait(f)} onclick={() => onopen(f.id)} aria-label={`${f.name} öffnen`}>
+    <button class="hang" class:portrait={isPortrait(f)} onclick={() => onopen(f.id)} aria-label={`${nameOf(f)} öffnen`}>
       <FrameArt frame={f} recent={st?.recent} dim={st !== undefined && !st.online} />
       <div class="label">
-        <h3>{f.name}</h3>
+        <h3>{nameOf(f)}</h3>
+        {#if aboutOf(f)}<div class="place">{aboutOf(f)}</div>{/if}
         <div class="mono">{facts(f) || 'Auflösung noch unbekannt'}</div>
         <div class="status"><span class="dot {line.dot}"></span>{line.text}</div>
       </div>
@@ -127,6 +128,7 @@
   .label { margin-top: 16px; padding: 10px 12px; background: var(--mat); border-left: 3px solid var(--brass); box-shadow: 0 1px 0 var(--rule); }
   .label h3 { font-family: var(--display); font-weight: 400; font-size: 20px; margin: 0 0 2px; }
   .label .mono { color: var(--ink-2); }
+  .label .place { font-size: 13px; color: var(--ink-2); margin: -2px 0 2px; }
   .status { font-size: 13px; margin-top: 4px; }
   .found { border: 2px dashed var(--rule); border-radius: 6px; padding: 26px 20px; text-align: center; color: var(--ink-2); align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 10px; min-height: 220px; }
   .found strong { color: var(--ink); }

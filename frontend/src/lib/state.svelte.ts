@@ -85,6 +85,23 @@ export async function loadSources(force = false) {
   }
 }
 
+/**
+ * The user's name for a frame, else the place it reports, else its own name
+ * (in Frameo, the owner's), else one from its id. Same order as Go's
+ * store.Frame.DisplayName.
+ */
+export function nameOf(f: Frame): string {
+  return f.name || f.place || f.frameName || `Frame ${f.id.slice(0, 6)}`
+}
+
+/** What the frame reports about itself that the title does not already say. */
+export function aboutOf(f: Frame): string {
+  const title = nameOf(f)
+  return [f.place && f.place !== title ? `Standort ${f.place}` : '', f.frameName && f.frameName !== title ? `Besitzer ${f.frameName}` : '']
+    .filter(Boolean)
+    .join(' · ')
+}
+
 /** Album and tag ids assigned to a frame. */
 export function sourceIds(f: Frame): string[] {
   return [...(f.sources.albums ?? []), ...(f.sources.tags ?? [])]

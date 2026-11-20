@@ -80,6 +80,11 @@ func TestImportAndExportUnframeo(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatalf("ImportUnframeo = %d, %v; want 1 frame", n, err)
 	}
+	// Imported frames follow the name the frame reports, once it answers.
+	if f, _ := s.Frame(peer.Public.String()); f.Name != "" {
+		t.Errorf("imported frame named %q, want empty (follow the frame)", f.Name)
+	}
+	_ = s.UpdateFrame(peer.Public.String(), func(f *store.Frame) { f.FrameName = "wohnzimmer" })
 	id, _ := s.Identity()
 	if id.Private.String() != uc.PrivateKey {
 		t.Error("imported identity differs from unframeo's")

@@ -41,7 +41,7 @@
       <label for="pair-code">Code</label>
       <input id="pair-code" class="code" inputmode="numeric" autocomplete="off" required bind:value={code} disabled={busy} />
       <label for="pair-name">Name <span class="muted" style="font-weight:400">(optional)</span></label>
-      <input id="pair-name" placeholder="Sonst der Name, den der Frame selbst nennt" bind:value={name} disabled={busy} />
+      <input id="pair-name" placeholder="Sonst der Standort, den der Frame meldet" bind:value={name} disabled={busy} />
       {#if busy}
         <p class="hint">Kopple… Das dauert einige Sekunden.</p>
       {:else if error}

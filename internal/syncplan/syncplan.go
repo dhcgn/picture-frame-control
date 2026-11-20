@@ -19,6 +19,7 @@ type Asset struct {
 	Checksum string
 	Taken    time.Time
 	Name     string // original file name, for messages
+	Caption  string // shown with the photo on the frame
 }
 
 // Entry records one asset this app put on the frame.
@@ -26,6 +27,7 @@ type Entry struct {
 	AssetID  string    `json:"assetId"`
 	Checksum string    `json:"checksum"`
 	Variant  string    `json:"variant"` // how it was prepared, e.g. "preview-jpg"
+	Caption  string    `json:"caption,omitempty"`
 	MediaID  int64     `json:"mediaId"` // the frame's id for it; 0 until known
 	Taken    int64     `json:"taken"`   // capture date sent, unix ms
 	Bytes    int       `json:"bytes"`
@@ -36,7 +38,7 @@ type Entry struct {
 type Plan struct {
 	Keep    []Entry // wanted and on the frame, unchanged
 	Send    []Asset // wanted but missing or changed, newest first
-	Delete  []Entry // on the frame, no longer wanted or changed in Immich
+	Delete  []Entry // on the frame, no longer wanted, or changed in Immich or in caption
 	Stale   []Entry // in the manifest but gone from the frame
 	Foreign []int64 // on the frame but not sent by this app
 }
@@ -61,7 +63,8 @@ func Compute(wanted []Asset, manifest []Entry, onFrame map[int64]bool) Plan {
 			continue
 		}
 		ours[e.MediaID] = true
-		if a, ok := want[e.AssetID]; ok && a.Checksum == e.Checksum && !kept[e.AssetID] {
+		// A new caption only travels with a new transfer, so it counts as a change.
+		if a, ok := want[e.AssetID]; ok && a.Checksum == e.Checksum && a.Caption == e.Caption && !kept[e.AssetID] {
 			kept[e.AssetID] = true
 			p.Keep = append(p.Keep, e)
 			continue

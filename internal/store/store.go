@@ -38,9 +38,12 @@ type Sources struct {
 
 // Frame is one paired frame and how it is to be filled.
 type Frame struct {
-	ID       string    `json:"id"` // the frame's peer id, hex
-	Name     string    `json:"name"`
-	PairedAt time.Time `json:"pairedAt"`
+	ID        string    `json:"id"`        // the frame's peer id, hex
+	Name      string    `json:"name"`      // the user's name for it; empty follows FrameName
+	FrameName string    `json:"frameName"` // the name the frame reports for itself
+	Place     string    `json:"place"`     // the location the frame reports
+	PairedAt  time.Time `json:"pairedAt"`
+	Caption   string    `json:"caption"` // "" for none, "album" for the Immich album name
 	Screen   Size      `json:"screen"`
 	MaxVideo Size      `json:"maxVideo"`
 	Rotate   bool      `json:"rotate"` // mounted portrait: swap width and height
@@ -248,8 +251,22 @@ func (s *Store) write(name string, data []byte) error {
 }
 
 // NewFrame is a frame just paired, with the defaults every frame starts from.
+// An empty name follows the name the frame reports.
 func NewFrame(peer sdg.PeerID, name string) Frame {
 	return Frame{ID: peer.String(), Name: name, PairedAt: time.Now().UTC(), Scale: "crop", Mode: "auto"}
+}
+
+// DisplayName is the user's name for the frame, else the place the frame
+// reports, else its own name, else a name made from its id. The place comes
+// before the name because Frameo's "name" is the owner's: every frame of one
+// person would carry the same one.
+func (f Frame) DisplayName() string {
+	for _, n := range []string{f.Name, f.Place, f.FrameName} {
+		if n != "" {
+			return n
+		}
+	}
+	return "Frame " + f.ID[:min(6, len(f.ID))]
 }
 
 // AddFrame records a pairing. Pairing a known frame again keeps its settings.
@@ -313,7 +330,9 @@ func (s *Store) ImportUnframeo(path string) (int, error) {
 			if err != nil {
 				return fmt.Errorf("Frame %q: %w", name, err)
 			}
-			f := NewFrame(peer, name)
+			// unframeo's names are command-line handles; the frame's own name
+			// is taken over when it first answers.
+			f := NewFrame(peer, "")
 			if !uf.PairedAt.IsZero() {
 				f.PairedAt = uf.PairedAt
 			}
@@ -338,9 +357,13 @@ func (s *Store) ExportUnframeo(path string) error {
 	uc.PrivateKey = id.Private.String()
 	uc.ClientName = cfg.ClientName
 	for _, f := range cfg.Frames {
-		uc.Frames[f.Name] = config.Frame{PeerID: f.ID, Name: f.Name, PairedAt: f.PairedAt}
+		name := f.DisplayName()
+		if _, taken := uc.Frames[name]; taken {
+			name += "-" + f.ID[:6] // unframeo names frames by a unique handle
+		}
+		uc.Frames[name] = config.Frame{PeerID: f.ID, Name: name, PairedAt: f.PairedAt}
 		if uc.DefaultFrame == "" {
-			uc.DefaultFrame = f.Name
+			uc.DefaultFrame = name
 		}
 	}
 	return uc.Save()

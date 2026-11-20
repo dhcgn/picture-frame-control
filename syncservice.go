@@ -101,6 +101,12 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	if err != nil {
 		return nil, err
 	}
+	var captions map[string]string
+	if f.Caption == "album" && len(f.Sources.Albums) > 0 {
+		if captions, err = albumCaptions(ctx, c, f.Sources.Albums); err != nil {
+			return nil, err
+		}
+	}
 	p := &prepared{frame: f}
 	var wanted []syncplan.Asset
 	for _, a := range assets {
@@ -108,7 +114,7 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 			p.skipped++ // ponytail: videos need the video+thumb transfer (M5)
 			continue
 		}
-		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName})
+		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName, Caption: captions[a.ID]})
 	}
 	slices.SortStableFunc(wanted, func(a, b syncplan.Asset) int { return b.Taken.Compare(a.Taken) })
 	if f.Limit > 0 && len(wanted) > f.Limit {
@@ -140,6 +146,36 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	}
 	p.plan = syncplan.Compute(wanted, p.manifest.Entries, onFrame)
 	return p, nil
+}
+
+// albumCaptions maps every asset in the given albums to an album name. A
+// photo in several of them gets the smallest album's name, which is usually
+// the more specific one ("Hochzeit Anna" rather than "Best of").
+func albumCaptions(ctx context.Context, c *immich.Client, albumIDs []string) (map[string]string, error) {
+	all, err := c.Albums(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var chosen []immich.Album
+	for _, a := range all {
+		if slices.Contains(albumIDs, a.ID) {
+			chosen = append(chosen, a)
+		}
+	}
+	slices.SortStableFunc(chosen, func(a, b immich.Album) int { return cmp.Compare(a.AssetCount, b.AssetCount) })
+	out := map[string]string{}
+	for _, a := range chosen {
+		assets, err := c.Assets(ctx, []string{a.ID}, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range assets {
+			if _, ok := out[x.ID]; !ok {
+				out[x.ID] = a.Name
+			}
+		}
+	}
+	return out, nil
 }
 
 // takenAt is when the photo was taken, as the frame should file it.
@@ -241,7 +277,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		return res
 	}
 	m := p.manifest
-	s.log(id, "info", "%s: %d bleiben, %d senden, %d löschen", p.frame.Name, len(p.plan.Keep), len(p.plan.Send), len(p.plan.Delete))
+	s.log(id, "info", "%s: %d bleiben, %d senden, %d löschen", p.frame.DisplayName(), len(p.plan.Keep), len(p.plan.Send), len(p.plan.Delete))
 
 	// Delete first: it makes room for what follows.
 	var del []int64
@@ -298,7 +334,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		}
 		var mediaID int64
 		_, err = s.frames.do(ctx, id, false, func(fc *frameo.Client) (err error) {
-			mediaID, err = fc.SendPhoto(ctx, frameo.Photo{Path: path, Taken: a.Taken, Fit: p.frame.Scale == "fit"})
+			mediaID, err = fc.SendPhoto(ctx, frameo.Photo{Path: path, Taken: a.Taken, Fit: p.frame.Scale == "fit", Caption: a.Caption})
 			return err
 		})
 		if fe, ok := errors.AsType[*frameo.FrameError](err); ok && fe.Code == errFrameFull {
@@ -311,7 +347,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 			s.log(id, "error", "%s: Senden fehlgeschlagen: %v", a.Name, err)
 			continue
 		}
-		e := syncplan.Entry{AssetID: a.ID, Checksum: a.Checksum, Variant: variant, MediaID: mediaID, Taken: a.Taken.UnixMilli(), Bytes: size, SentAt: time.Now().UTC()}
+		e := syncplan.Entry{AssetID: a.ID, Checksum: a.Checksum, Variant: variant, Caption: a.Caption, MediaID: mediaID, Taken: a.Taken.UnixMilli(), Bytes: size, SentAt: time.Now().UTC()}
 		m.Entries = append(m.Entries, e)
 		if err := m.Save(); err != nil {
 			res.Error = "Sync-Stand nicht speicherbar: " + err.Error()
@@ -324,7 +360,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "check"})
 		s.reconcile(ctx, id, m, sent)
 	}
-	s.log(id, "info", "%s fertig: %d gesendet, %d gelöscht, %d fehlgeschlagen", p.frame.Name, res.Sent, res.Deleted, res.Failed)
+	s.log(id, "info", "%s fertig: %d gesendet, %d gelöscht, %d fehlgeschlagen", p.frame.DisplayName(), res.Sent, res.Deleted, res.Failed)
 	return res
 }
 

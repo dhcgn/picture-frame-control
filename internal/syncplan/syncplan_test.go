@@ -54,6 +54,16 @@ func TestCompute(t *testing.T) {
 	}
 }
 
+// Turning captions on resends what is already there; unchanged captions keep it.
+func TestComputeCaptionChangeResends(t *testing.T) {
+	m := []Entry{{AssetID: "a", Checksum: "c", MediaID: 1}, {AssetID: "b", Checksum: "c", MediaID: 2, Caption: "Urlaub"}}
+	on := map[int64]bool{1: true, 2: true}
+	p := Compute([]Asset{{ID: "a", Checksum: "c", Caption: "Urlaub"}, {ID: "b", Checksum: "c", Caption: "Urlaub"}}, m, on)
+	if len(p.Delete) != 1 || p.Delete[0].AssetID != "a" || len(p.Send) != 1 || p.Send[0].ID != "a" || len(p.Keep) != 1 {
+		t.Errorf("plan = %+v", p)
+	}
+}
+
 // Nothing wanted means everything this app sent goes, and nothing else.
 func TestComputeEmptySelectionDeletesOnlyOurs(t *testing.T) {
 	p := Compute(nil, []Entry{{AssetID: "a", MediaID: 1}}, map[int64]bool{1: true, 2: true})

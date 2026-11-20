@@ -3,7 +3,7 @@
   import { SvelteSet } from 'svelte/reactivity'
   import { SyncService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import FrameArt from '../lib/FrameArt.svelte'
-  import { app, errText, isPortrait, notify, planSync, probe, type FramePlan } from '../lib/state.svelte'
+  import { app, errText, isPortrait, nameOf, notify, planSync, probe, type FramePlan } from '../lib/state.svelte'
 
   let { onassign }: { onassign: () => void } = $props()
 
@@ -91,7 +91,7 @@
       {#if f}
         <article class="plan panel" class:off={!!p.error}>
           <div class="art" class:portrait={isPortrait(f)}><FrameArt frame={f} mini /></div>
-          <h3>{f.name}</h3>
+          <h3>{nameOf(f)}</h3>
           {#if sync.running}
             <span class="mono muted">{prog ? phaseText[prog.phase] : include[p.frameId] && !p.error ? 'Wartet' : ''}</span>
           {:else}
@@ -162,7 +162,8 @@
   {#if sync.log.length}
     <div class="log panel" aria-label="Protokoll">
       {#each sync.log as l, i (i)}
-        <div class={l.level}>{l.time} {frameOf(l.frame)?.name ?? ''} · {l.text}</div>
+{@const lf = frameOf(l.frame)}
+        <div class={l.level}>{l.time} {lf ? nameOf(lf) : ''} · {l.text}</div>
       {/each}
     </div>
   {/if}
