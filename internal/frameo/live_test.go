@@ -20,6 +20,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,6 +137,57 @@ func TestLiveSendPhotoSingleSegment(t *testing.T) {
 		t.Fatalf("SendPhoto: %v", err)
 	}
 	t.Logf("the frame accepted the photo as %d", id)
+}
+
+// TestLiveSendVideo sends UNFRAMEO_VIDEO (an MP4) with UNFRAMEO_VIDEO_THUMB
+// (a JPEG still) as one VIDEO_WITH_THUMB upload, then looks for it in the
+// listing. Whether it plays only a look at the frame can tell.
+func TestLiveSendVideo(t *testing.T) {
+	path, thumb := os.Getenv("UNFRAMEO_VIDEO"), os.Getenv("UNFRAMEO_VIDEO_THUMB")
+	if path == "" || thumb == "" {
+		t.Skip("set UNFRAMEO_VIDEO and UNFRAMEO_VIDEO_THUMB to send a video to the frame")
+	}
+	c := connectLive(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	id, err := c.SendVideo(ctx, frameo.Video{Path: path, Thumb: thumb, Caption: "picture-frame-control video test"})
+	if err != nil {
+		t.Fatalf("SendVideo: %v", err)
+	}
+	t.Logf("the frame accepted the video as %d", id)
+	items, err := c.ListMedia(ctx)
+	if err != nil {
+		t.Fatalf("listing: %v", err)
+	}
+	for _, m := range items {
+		if m.GetMediaId() == id {
+			t.Logf("listed: type %v, visible %t", m.GetType(), m.GetIsVisible())
+			return
+		}
+	}
+	t.Errorf("video %d is not in the listing of %d items", id, len(items))
+}
+
+// TestLiveDeleteMedia deletes the ids in UNFRAMEO_DELETE (comma-separated),
+// for cleaning up after a test. Deleting is final.
+func TestLiveDeleteMedia(t *testing.T) {
+	var ids []int64
+	for _, s := range strings.Split(os.Getenv("UNFRAMEO_DELETE"), ",") {
+		if n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64); err == nil {
+			ids = append(ids, n)
+		}
+	}
+	if len(ids) == 0 {
+		t.Skip("set UNFRAMEO_DELETE to the ids to delete")
+	}
+	c := connectLive(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := c.DeleteMedia(ctx, ids); err != nil {
+		t.Fatalf("DeleteMedia(%v): %v", ids, err)
+	}
+	t.Logf("deleted %v", ids)
 }
 
 // TestLiveListMedia asks the real frame for its media listing. The message

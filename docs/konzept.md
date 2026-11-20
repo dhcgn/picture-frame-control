@@ -144,14 +144,18 @@ Cache: `%LOCALAPPDATA%\picture-frame-control\cache\`
 |---|---|---|---|
 | Bild, ohne magick | `thumbnail?size=preview` (kurze Seite 1440 px), wenn sie den Bildschirm füllt, sonst `size=fullsize` | keine | `.jpg`, Scale-Type laut Frame |
 | Bild, mit magick | dieselbe Quelle aus dem Cache | crop: `magick in -auto-orient -resize WxH^> -quality 82 out.webp` · fit: `magick in -auto-orient -resize WxH> -quality 82 out.webp`. W×H = Screen, bei Hochkant-Montage getauscht. Schlägt magick fehl: Quelle unverändert senden und warnen | `.webp` |
-| Video, mit ffmpeg | `video/playback` | `ffmpeg -i in -vf scale=W:H:force_original_aspect_ratio=decrease -c:v libx264 -crf 28 -preset veryfast -c:a aac -b:a 96k -movflags +faststart out.mp4` mit W×H = min(Screen, maxVideo) | `.mp4` + Preview-JPEG als Thumbnail |
-| Video, ohne ffmpeg | – | übersprungen | – |
+| Video, mit ffmpeg | `/assets/{id}/original`, als Stream in eine temporäre Datei, nach der Umwandlung gelöscht | `ffmpeg -i in -t 299 -map 0:v:0 -map 0:a:0? -vf scale=w='min(W,iw)':h='min(H,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2 -fpsmax 30 -c:v libx264 -preset medium -crf 23 -profile:v high -pix_fmt yuv420p -maxrate R -bufsize 2R -c:a aac -b:a 96k -ac 2 -movflags +faststart out.mp4`, danach ein Standbild bei 1 s als JPEG | `.mp4` + `.jpg`, Typ 2 „Video mit Vorschaubild“ |
+| Video, ohne ffmpeg oder kürzer als 4 s | – | übersprungen | – |
+
+- **Videos nach den Frameo-Empfehlungen:** 4 s bis 4:59 (länger wird nach 4:59 abgeschnitten), höchstens 125 MB, 30 fps, AAC 96 kbps. W×H ist der Bildschirm in der eingestellten Ausrichtung, begrenzt auf die Videogröße, die der Frame meldet (`maxVideo`, z. B. 1920×1088). Unbekannt: 1280×720. Das Video passt hinein und wird nie vergrößert. R ist 10 Mbps bei Frames über 1280 px (15", 1080p), sonst 5 Mbps, und sinkt bei langen Videos, damit sie unter 125 MB bleiben (4:59 bei 1080p ≈ 3,1 Mbps).
+- **Video-Protokoll (O-4, live bestätigt 2026-11-20):** ein Media-Header mit Typ 2, `size` = Bytes des Videos und `extra[0]` = Größe und Endung des Standbilds. Danach die Segmente: erst das Video, direkt anschließend das Standbild, im letzten Segment die Ack-ID. Ein echter Frame hat ein so gesendetes Testvideo mit Bild und Ton abgespielt und als `MEDIAMETADATA_TYPE_VIDEO` gelistet.
+- **Videos beim Zuschneiden:** Ein Hochformatvideo auf einem Querformat-Frame müsste für „nie unter nativ“ größer sein, als der Frame Videos abspielen kann. Videos passen deshalb immer in die Box, auch wenn der Frame zuschneidet.
 
 - **Nie unter der nativen Auflösung:** Der Frame soll kein Bild hochskalieren müssen. Die Preview genügt, wenn sie den Bildschirm füllt: beim Zuschneiden in beiden Richtungen (`w ≥ W` und `h ≥ H`), beim Einpassen in einer. Sonst lädt die App `size=fullsize`. Immich liefert dafür bei JPEG, PNG und WebP das Original, sonst ein Fullsize-JPEG, falls aktiviert (Bildeinstellungen in Immich), und sonst wieder die Preview. Beispiel Full-HD-Frame (1920×1080) beim Zuschneiden: Querformat 4:3 kommt aus der Preview (1920×1440), Hochformat aus Fullsize, weil 1440 px Breite nicht reichen. Ist das Original selbst kleiner als der Bildschirm, geht es unvergrößert.
 - **Drehen:** Die Rechnung gilt für die Ausrichtung in den Frame-Einstellungen („hochkant montiert“). Wird ein Frame gedreht, ohne dass die Einstellung folgt, kann ein Bild darunter liegen.
 - **Warum nicht zuschneiden:** `^>` verkleinert nur so weit, dass das Bild den Bildschirm noch ganz abdeckt, und vergrößert nie. Den Zuschnitt macht weiter der Frame um seinen Mittelpunkt. So bleibt das Bild auch bei einem gedrehten Frame oder einem späteren Wechsel auf „Einpassen“ ganz.
 - **Qualität** ist fest 82 (`shrinkFormat`/`shrinkQuality` in `magick.go`). Zeigt ein Frame kein WebP (O-3), genügt dort `jpg`.
-- **Tools:** Pfade für `magick.exe` und `ffmpeg.exe` stehen in der Config. „Suchen“ nimmt `exec.LookPath`, sonst `%ProgramFiles%\ImageMagick-*\magick.exe`; „Auswählen…“ öffnet einen Dateidialog. Die Version wird über `-version` angezeigt.
+- **Tools:** Pfade für `magick.exe` und `ffmpeg.exe` stehen in der Config. „Suchen“ nimmt `exec.LookPath`, sonst die üblichen Installationsorte (`%ProgramFiles%\ImageMagick-*`, `%ProgramFiles%\ffmpeg\bin`, `C:\ffmpeg\bin`, `C:\tools`); „Auswählen…“ öffnet einen Dateidialog. Die Version wird über `-version` angezeigt. Beide laufen ohne Konsolenfenster.
 - **Cache-Schlüssel:** `assetId_checksum_variant.ext`. Frames mit gleicher Auflösung und gleichem Modus teilen sich die Datei.
 - **Varianten-Wechsel** (z. B. magick neu installiert) löst **kein** automatisches Neusenden aus. Sonst würde eine Einstellungsänderung den ganzen Frame neu befüllen. Dafür gibt es je Frame in der Sync-Ansicht **„Alles neu senden (Force Sync)“**: Alle Bilder dieser App werden gelöscht und nach den aktuellen Einstellungen neu gesendet. Fremde Bilder bleiben. Das braucht die Berechtigung „Verwalten“, sonst lägen alte und neue Kopien nebeneinander.
 
@@ -223,7 +227,7 @@ Events Go → UI: `sync:progress {frame, phase, done, total, asset}` · `sync:lo
 | M2 ✓ | Immich-Client, Alben/Tags, Zuordnungsmatrix | Quellen je Frame wählbar (2026-11-20, gegen Immich 3.4.0 geprüft) |
 | M3 ✓ | Sync für Bilder ohne magick, syncplan mit Test, Live-Test O-2 | Spiegeln funktioniert gegen Fake-Frame und Fake-Immich; Vorschau gegen echte Daten geprüft. Echter Sync und O-2 stehen aus (Protokollzeile „ID-Abgleich“) |
 | M4 ✓ | magick/WebP, Tool-Erkennung, Cache, Live-Test O-3 | Kleinere Dateien (1920×1440-JPEG → 1280×960-WebP). Neu senden per Force Sync. Offen: Live-Test O-3 |
-| M5 | Spike Video-Protokoll, danach ffmpeg-Pipeline | Videos auf dem Frame |
+| M5 ✓ | Spike Video-Protokoll, danach ffmpeg-Pipeline | Protokoll live bestätigt (Testvideo spielt mit Ton). Umwandlung gegen echtes ffmpeg getestet. Offen: ein echter Sync mit Videos aus Immich |
 
 ## 13. Tests
 

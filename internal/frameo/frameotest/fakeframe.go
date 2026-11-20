@@ -23,10 +23,11 @@ type MessageRW interface {
 	Recv() ([]byte, error)
 }
 
-// Photo is a completed transfer.
+// Photo is a completed transfer: a photo, or a video with its still in Extra.
 type Photo struct {
 	Media *pb.Media
 	Data  []byte
+	Extra []byte // the streams the header's extra describes, after Data
 }
 
 // Frame is a fake photo frame.
@@ -421,14 +422,20 @@ func (f *Frame) appendSegment(rw MessageRW, seg *pb.MediaDataSegment) error {
 		return fmt.Errorf("frameotest: file data arrived with no transfer open")
 	}
 	t.data = append(t.data, seg.GetData()...)
-	done := len(t.data) >= int(t.media.GetSize())
+	// A video's still follows the video in the same transfer, as the header's
+	// extra announces.
+	size := t.media.GetSize()
+	for _, e := range t.media.GetExtra() {
+		size += e.GetSize()
+	}
+	done := len(t.data) >= int(size)
 	if done {
 		delete(f.partial, id)
-		if len(t.data) == int(t.media.GetSize()) && !f.RefuseTransfers {
-			f.photos = append(f.photos, Photo{Media: t.media, Data: t.data})
+		if len(t.data) == int(size) && !f.RefuseTransfers {
+			n := t.media.GetSize()
+			f.photos = append(f.photos, Photo{Media: t.media, Data: t.data[:n], Extra: t.data[n:]})
 		}
 	}
-	size := t.media.GetSize()
 	got := len(t.data)
 	f.mu.Unlock()
 

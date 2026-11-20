@@ -115,12 +115,15 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	}
 	p := &prepared{frame: f}
 	var wanted []syncplan.Asset
+	ffmpeg := s.store.Config().FFmpeg != ""
 	for _, a := range assets {
-		if a.Type != immich.Image {
-			p.skipped++ // ponytail: videos need the video+thumb transfer (M5)
+		video := a.Type == immich.Video
+		// Videos need ffmpeg, and Frameo takes none shorter than 4 s.
+		if video && (!ffmpeg || a.Length() > 0 && a.Length() < videoMin) {
+			p.skipped++
 			continue
 		}
-		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName})
+		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName, Video: video, Length: a.Length()})
 	}
 	if f.Caption == "album" {
 		if err := s.albumCaptions(ctx, c, wanted, f.Sources.Albums); err != nil {
@@ -382,6 +385,10 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		if w, h, _, ok := s.shrinkTo(p.frame); ok {
 			s.log(id, "info", i18n.T("ImageMagick verkleinert die Bilder auf %d×%d (%s)", "ImageMagick shrinks the photos to %d×%d (%s)"), w, h, strings.ToUpper(shrinkFormat))
 		}
+		if slices.ContainsFunc(p.plan.Send, func(a syncplan.Asset) bool { return a.Video }) {
+			w, h := videoBox(p.frame)
+			s.log(id, "info", i18n.T("ffmpeg wandelt die Videos um: höchstens %d×%d, 30 fps, bis 4:59", "ffmpeg converts the videos: at most %d×%d, 30 fps, up to 4:59"), w, h)
+		}
 	}
 	var sent []syncplan.Entry
 	for i, a := range p.plan.Send {
@@ -391,15 +398,34 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 			break
 		}
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "send", Done: i, Total: len(p.plan.Send), Item: a.Name})
-		path, variant, size, err := s.mediaFile(ctx, c, a, p.frame)
+		fit := p.frame.Scale == "fit"
+		var sendTo func(*frameo.Client) (int64, error)
+		var variant string
+		var size int
+		if a.Video {
+			var video, thumb string
+			video, thumb, variant, size, err = s.videoFile(ctx, c, a, p.frame)
+			sendTo = func(fc *frameo.Client) (int64, error) {
+				return fc.SendVideo(ctx, frameo.Video{Path: video, Thumb: thumb, Taken: a.Taken, Fit: fit, Caption: a.Caption})
+			}
+		} else {
+			var path string
+			path, variant, size, err = s.mediaFile(ctx, c, a, p.frame)
+			sendTo = func(fc *frameo.Client) (int64, error) {
+				return fc.SendPhoto(ctx, frameo.Photo{Path: path, Taken: a.Taken, Fit: fit, Caption: a.Caption})
+			}
+		}
 		if err != nil {
+			if ctx.Err() != nil {
+				continue // the next round reports the cancel
+			}
 			res.Failed++
-			s.log(id, "error", i18n.T("%s: Bild aus Immich nicht geladen: %v", "%s: could not load the photo from Immich: %v"), a.Name, err)
+			s.log(id, "error", i18n.T("%s: nicht vorbereitet: %v", "%s: could not be prepared: %v"), a.Name, err)
 			continue
 		}
 		var mediaID int64
 		_, err = s.frames.do(ctx, id, false, func(fc *frameo.Client) (err error) {
-			mediaID, err = fc.SendPhoto(ctx, frameo.Photo{Path: path, Taken: a.Taken, Fit: p.frame.Scale == "fit", Caption: a.Caption})
+			mediaID, err = sendTo(fc)
 			return err
 		})
 		if fe, ok := errors.AsType[*frameo.FrameError](err); ok && fe.Code == errFrameFull {
@@ -531,8 +557,7 @@ func imageSize(path string) (w, h int, ok bool) {
 // screen and scaling share it.
 // ponytail: the cache only grows; a "clear cache" button (E-04) when it gets big
 func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset, f store.Frame) (path, variant string, size int, err error) {
-	dir := filepath.Join(s.cacheDir, "media")
-	base := filepath.Join(dir, a.ID+"_"+strings.NewReplacer("/", "_", "+", "-", "=", "").Replace(a.Checksum))
+	base := s.cacheBase(a)
 	w, h, shrunk, ok := s.shrinkTo(f)
 	out := base + "_" + shrunk + "." + shrinkFormat
 	if st, err := os.Stat(out); ok && err == nil {
@@ -556,6 +581,12 @@ func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncpla
 		return "", "", 0, err
 	}
 	return out, shrunk, int(st.Size()), nil
+}
+
+// cacheBase is where the files prepared from one version of an asset start:
+// renditions and conversions add "_<what>.<ext>".
+func (s *SyncService) cacheBase(a syncplan.Asset) string {
+	return filepath.Join(s.cacheDir, "media", a.ID+"_"+strings.NewReplacer("/", "_", "+", "-", "=", "").Replace(a.Checksum))
 }
 
 // source returns the smallest rendition from Immich that fills the frame's

@@ -107,7 +107,7 @@ func TestMediaFileNeverBelowScreen(t *testing.T) {
 // preview falls short, never below the screen, cached, and the photo as it
 // came from Immich when ImageMagick fails.
 func TestMediaFileShrinks(t *testing.T) {
-	magick := findMagick()
+	magick := tools["magick"].find()
 	if magick == "" {
 		t.Skip("ImageMagick is not installed")
 	}
@@ -119,7 +119,7 @@ func TestMediaFileShrinks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	size := func(path string) string {
-		out, err := magickCmd(ctx, magick, "identify", "-format", "%wx%h %m", path).Output()
+		out, err := hiddenCmd(ctx, magick, "identify", "-format", "%wx%h %m", path).Output()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -163,15 +163,15 @@ func TestMediaFileShrinks(t *testing.T) {
 }
 
 func TestMagickVersion(t *testing.T) {
-	magick := findMagick()
+	magick := tools["magick"].find()
 	if magick == "" {
 		t.Skip("ImageMagick is not installed")
 	}
-	if v, err := magickVersion(context.Background(), magick); err != nil || !strings.HasPrefix(v, "7.") {
+	if v, err := tools["magick"].version(context.Background(), magick); err != nil || !strings.HasPrefix(v, "7.") {
 		t.Errorf("version %q, %v", v, err)
 	}
 	// Some other program is not taken for ImageMagick.
-	if _, err := magickVersion(context.Background(), "cmd.exe"); err == nil {
+	if _, err := tools["magick"].version(context.Background(), "cmd.exe"); err == nil {
 		t.Error("cmd.exe taken for ImageMagick")
 	}
 }

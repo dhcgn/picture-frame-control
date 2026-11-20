@@ -153,3 +153,58 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 		t.Errorf("manifest after force = %+v, want the 2 photos once each", m.Entries)
 	}
 }
+
+// TestSyncSendsVideos syncs videos with the ffmpeg installed here: a 5-second
+// clip goes to the frame as a video with its still, a 2-second one is skipped
+// because Frameo takes none that short.
+func TestSyncSendsVideos(t *testing.T) {
+	ffmpeg := tools["ffmpeg"].find()
+	if ffmpeg == "" {
+		t.Skip("ffmpeg is not installed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	clip := makeClip(t, ctx, ffmpeg, "1280x720", "30", true)
+	immichSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/search/metadata":
+			_, _ = w.Write([]byte(`{"assets":{"items":[
+				{"id":"clip","type":"VIDEO","checksum":"c1","fileCreatedAt":"2024-05-01T10:00:00.000Z","originalFileName":"clip.mov","duration":"0:00:05.000000"},
+				{"id":"blink","type":"VIDEO","checksum":"c2","fileCreatedAt":"2024-05-02T10:00:00.000Z","originalFileName":"blink.mov","duration":"0:00:02.000000"}
+			],"nextCursor":null}}`))
+		case r.URL.Path == "/api/assets/clip/original":
+			http.ServeFile(w, r, clip)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer immichSrv.Close()
+
+	frame := frameotest.New()
+	frame.ListType = frameo.TypeGetAllMediaMetaData
+	frames, st, f := withFakeFrame(t, frame)
+	_ = st.SetImmichAPIKey("k")
+	_ = st.Update(func(c *store.Config) error { c.ImmichServer = immichSrv.URL; c.FFmpeg = ffmpeg; return nil })
+	_ = st.UpdateFrame(f.ID, func(fr *store.Frame) {
+		fr.Sources.Albums = []string{"a"}
+		fr.Screen, fr.MaxVideo = store.Size{W: 1280, H: 800}, store.Size{W: 1280, H: 720}
+	})
+	dir := t.TempDir()
+	s := &SyncService{store: st, frames: frames, immich: &ImmichService{store: st}, dataDir: dir, cacheDir: dir, emit: func(string, any) {}}
+
+	if p := s.Preview(ctx, []string{f.ID})[0]; p.Error != "" || p.Send != 1 || p.Skipped != 1 {
+		t.Fatalf("Preview = %+v, want the 5-second clip to send and the 2-second one skipped", p)
+	}
+	res, err := s.Run(ctx, []RunFrame{{FrameID: f.ID}})
+	if err != nil || res[0].Sent != 1 || res[0].Error != "" {
+		t.Fatalf("Run = %+v, %v", res, err)
+	}
+	got := frame.Photos()
+	if len(got) != 1 || got[0].Media.GetType() != pb.Media_VIDEO_WITH_THUMB || got[0].Media.GetFileExtension() != "mp4" ||
+		len(got[0].Extra) == 0 || string(got[0].Extra[:3]) != "\xff\xd8\xff" {
+		t.Fatalf("frame got %d items, first %v with %d still bytes; want one video with a JPEG still", len(got), got[0].Media, len(got[0].Extra))
+	}
+	if m, _ := syncplan.Load(s.manifestPath(f.ID)); len(m.Entries) != 1 || m.Entries[0].Variant != "mp4-1280x720-crf23" {
+		t.Errorf("manifest = %+v", m.Entries)
+	}
+}

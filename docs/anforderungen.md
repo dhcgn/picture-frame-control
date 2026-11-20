@@ -75,8 +75,8 @@ Windows-Desktop-App (Go + Wails v3), die
 |---|---|
 | M-01 | Bilder ohne ImageMagick: Immich-Preview (JPEG) unverändert senden. Füllt sie den Bildschirm nicht (z. B. Hochformat auf Full HD), das Fullsize-Bild. Kein Bild soll unter der nativen Auflösung des Frames ankommen |
 | M-02 | Bilder mit ImageMagick (`magick.exe`, Pfad in Config): die Immich-Preview auf die native Frame-Auflösung verkleinern, als WebP. Das Bild deckt den Bildschirm ab („Zuschneiden“) oder passt hinein („Einpassen“). Den Zuschnitt selbst macht der Frame |
-| M-03 | Videos mit ffmpeg (Pfad in Config): auf native Frame-Auflösung konvertieren |
-| M-04 | Videos ohne ffmpeg: überspringen und in der Vorschau als "übersprungen" ausweisen |
+| M-03 | Videos mit ffmpeg (Pfad in Config): nach den Frameo-Empfehlungen umwandeln: H.264/AAC in MP4, höchstens Bildschirmgröße (nie vergrößert), 30 fps, Audio 96 kbps, unter 125 MB. Länger als 4:59 wird gekürzt |
+| M-04 | Videos ohne ffmpeg oder kürzer als 4 s: überspringen und in der Vorschau als "übersprungen" ausweisen |
 | M-05 | Tool-Erkennung in den Einstellungen: Pfad prüfen, Version anzeigen |
 | M-06 | Konvertierte Dateien zwischenspeichern (Cache-Verzeichnis), damit derselbe Asset für mehrere Frames mit gleicher Auflösung nur einmal konvertiert wird |
 
@@ -117,7 +117,7 @@ Windows-Desktop-App (Go + Wails v3), die
 |---|---|---|
 | O-2 | ~~Liefert `list` dieselbe Media-ID, die der Client beim Senden vergibt?~~ **Ja** (2026-11-20): Alle 131 gesendeten Bilder eines echten Frames stehen unter der gesendeten ID in der Liste. Das Bildraster zeigt sie als „Aus Immich“ | geklärt |
 | O-3 | Zeigt der Frame WebP an? Sonst JPEG als Ziel (M-02) | Live-Test |
-| O-4 | Welche Videoformate, Längen und Größen akzeptiert der Frame? Typ "video+thumb" braucht vermutlich ein separates Vorschaubild | Live-Test + Protokollanalyse |
+| O-4 | ~~Welche Videoformate, Längen und Größen akzeptiert der Frame?~~ **Geklärt** (2026-11-20): Typ 2 mit dem Standbild als `extra`, hinter dem Video im selben Transfer. Ein H.264/AAC-MP4 lief am echten Frame mit Ton. Grenzen laut Frameo: 4 s bis 4:59, bis 125 MB, 30 fps | geklärt |
 | O-5 | Papierkorb/Archiv (I-06): immer ausschließen oder abschaltbar? | Entscheidung Nutzer |
 
 **Entschieden (2026-11-20):** Lizenz GPL-3 · Frame voll: neueste zuerst · Sync nur manuell · ein Immich-Server mit einem API-Key.

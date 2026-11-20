@@ -135,7 +135,7 @@
               <span><i style:background="var(--send)"></i>{t('Senden', 'To send')} <b>{n(send)}</b></span>
               <span><i style:background="var(--del)"></i>{t('Löschen', 'To delete')} <b>{n(del)}</b>{#if forced(p)}<span class="muted"> {t('alle Bilder dieser App, sie kommen neu', 'every photo from this app; they come again')}</span>{:else if p.delete && p.canDelete}<span class="muted"> {t('nicht mehr ausgewählt oder geändert', 'no longer selected, or changed')}</span>{/if}</span>
               {#if p.foreign?.length}<span><i style:background="var(--foreign)"></i>{t('Fremd', 'Foreign')} <b>{n(p.foreign.length)}</b></span>{/if}
-              {#if p.skipped}<span><i style:background="var(--skip)"></i>{t('Übersprungen', 'Skipped')} <b>{n(p.skipped)}</b><span class="muted"> Videos</span></span>{/if}
+              {#if p.skipped}<span><i style:background="var(--skip)"></i>{t('Übersprungen', 'Skipped')} <b>{n(p.skipped)}</b><span class="muted"> {t('Videos: ohne ffmpeg oder kürzer als 4 s', 'videos: without ffmpeg, or shorter than 4 s')}</span></span>{/if}
               {#if p.overLimit}<span class="warn">{t('Über dem Limit', 'Over the limit')} <b>{n(p.overLimit)}</b><span class="muted"> {t('ältere werden nicht gesendet', 'older ones are not sent')}</span></span>{/if}
             </div>
             {#if !f.sources.albums?.length && !f.sources.tags?.length}

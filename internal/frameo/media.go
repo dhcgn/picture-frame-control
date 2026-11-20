@@ -93,28 +93,80 @@ func (c *Client) SendPhoto(ctx context.Context, p Photo) (int64, error) {
 		CaptureDate:   taken.UnixMilli(),
 		Caption:       p.Caption,
 	}
-	if err := c.send(ctx, TypeMedia, media); err != nil {
-		return 0, err
+	c.log.Debug("sending photo", "path", p.Path, "bytes", len(data), "id", id)
+	return id, c.upload(ctx, media, data, p.SingleSegment, "the photo")
+}
+
+// Video describes one video to send: the file and a still the frame shows
+// for it until it plays.
+type Video struct {
+	Path    string // an MP4 the frame can play
+	Thumb   string // a JPEG still
+	Caption string
+	Taken   time.Time
+	Fit     bool
+}
+
+// SendVideo transfers a video with its still as one upload of type
+// VIDEO_WITH_THUMB: the header announces the video's size and describes the
+// still in extra, and the video's bytes are followed by the still's. That is
+// the layout a frame uses for extra streams when it hands media back.
+func (c *Client) SendVideo(ctx context.Context, v Video) (int64, error) {
+	data, err := os.ReadFile(v.Path)
+	if err != nil {
+		return 0, fmt.Errorf("frameo: %w", err)
 	}
+	thumb, err := os.ReadFile(v.Thumb)
+	if err != nil {
+		return 0, fmt.Errorf("frameo: %w", err)
+	}
+	if len(data) == 0 || len(thumb) == 0 || len(data)+len(thumb) > math.MaxInt32 {
+		return 0, fmt.Errorf("frameo: %s with its still is %d+%d bytes, which cannot be sent", v.Path, len(data), len(thumb))
+	}
+	taken := v.Taken
+	if taken.IsZero() {
+		taken = time.Now()
+	}
+	scale := pb.Media_CENTER_POINT_CROP
+	if v.Fit {
+		scale = pb.Media_FIT_INSIDE
+	}
+	id := c.newID()
+	media := &pb.Media{
+		Id:            id,
+		ContentId:     id,
+		Size:          int32(len(data)),
+		FileExtension: fileExtension(v.Path, ""),
+		Type:          pb.Media_VIDEO_WITH_THUMB,
+		Extra:         []*pb.Extra{{Size: int32(len(thumb)), FileExtension: fileExtension(v.Thumb, "")}},
+		ScaleType:     scale,
+		CenterPointX:  0.5,
+		CenterPointY:  0.5,
+		CaptureDate:   taken.UnixMilli(),
+		Caption:       v.Caption,
+	}
+	c.log.Debug("sending video", "path", v.Path, "bytes", len(data), "thumb", len(thumb), "id", id)
+	return id, c.upload(ctx, media, append(data, thumb...), false, "the video")
+}
 
+// upload sends a media header and then the stream in order, the last segment
+// asking for a receipt, and waits for the frame to accept it.
+func (c *Client) upload(ctx context.Context, media *pb.Media, data []byte, single bool, subject string) error {
+	if err := c.send(ctx, TypeMedia, media); err != nil {
+		return err
+	}
 	ackID := c.newID()
-	segments := segmentCount(len(data), p.SingleSegment)
-	c.log.Debug("sending photo", "path", p.Path, "bytes", len(data), "id", id, "segments", segments)
-
-	for i, chunk := range chunks(data, p.SingleSegment) {
+	segments := segmentCount(len(data), single)
+	for i, chunk := range chunks(data, single) {
 		seg := &pb.MediaDataSegment{Data: chunk}
 		if i == segments-1 {
 			seg.RequiresAcknowledgeReceiptId = ackID
 		}
 		if err := c.send(ctx, TypeMediaDataSegment, seg); err != nil {
-			return 0, err
+			return err
 		}
 	}
-
-	if err := c.awaitAck(ctx, ackID, "the photo to be accepted", "the photo"); err != nil {
-		return 0, err
-	}
-	return id, nil
+	return c.awaitAck(ctx, ackID, subject+" to be accepted", subject)
 }
 
 // awaitAck waits for the frame to confirm the operation with the given id. A

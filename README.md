@@ -10,6 +10,7 @@ A Windows app that manages Frameo digital photo frames and mirrors albums and ta
 - Sync: send new photos, remove the ones no longer selected, and touch photos the app did not send only when you say so
 - Optionally use the album name as the photo caption
 - Optionally shrink photos to the frame's resolution as WebP with [ImageMagick](https://imagemagick.org)
+- Optionally send videos too, converted with [ffmpeg](https://ffmpeg.org) to what Frameo plays (H.264, up to the frame's resolution, 30 fps, up to 4:59)
 
 The user interface is in English and German; by default it follows the Windows display language.
 
@@ -23,7 +24,7 @@ The user interface is in English and German; by default it follows the Windows d
 1. Download the latest `picture-frame-control_<version>_windows_amd64.exe` from [Releases](https://github.com/dhcgn/picture-frame-control/releases/latest) and run it. There is no installer.
 2. Under **Settings**, enter your Immich address and API key. The key needs read access to albums, tags and assets.
 3. Under **Frames**, pair a frame with the code shown on its display, or take over existing pairings from [unframeo](https://github.com/borje/unframeo).
-4. Optional: install [ImageMagick](https://imagemagick.org/script/download.php#windows) and click **Find** under **Settings → Shrinking photos**. Photos then go to the frames shrunk to their screen as WebP instead of as Immich's preview.
+4. Optional: install [ImageMagick](https://imagemagick.org/script/download.php#windows) and/or [ffmpeg](https://ffmpeg.org/download.html#build-windows) and click **Find** under **Settings → Preparing photos and videos**. With ImageMagick, photos go to the frames shrunk to their screen as WebP. With ffmpeg, videos go too; without it they are skipped.
 
 Settings are stored in `%APPDATA%\picture-frame-control`. The API key and the pairing key are encrypted there for your Windows user (DPAPI).
 

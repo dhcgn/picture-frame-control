@@ -27,16 +27,22 @@ type SettingsService struct {
 
 // Settings is what the settings page shows.
 type Settings struct {
-	Language       string `json:"language"`       // in use: "de" or "en"
-	LanguageChoice string `json:"languageChoice"` // stored: "de", "en", or "" to follow Windows
-	ClientName     string `json:"clientName"`
-	HasIdentity    bool   `json:"hasIdentity"`
-	PublicKey      string `json:"publicKey"`
-	UnframeoPath   string `json:"unframeoPath"` // unframeo's config.json, when one exists
-	DataDir        string `json:"dataDir"`
-	Magick         string `json:"magick"`        // magick.exe, "" when not set up
-	MagickVersion  string `json:"magickVersion"` // "" when it does not start
-	MagickError    string `json:"magickError"`
+	Language       string     `json:"language"`       // in use: "de" or "en"
+	LanguageChoice string     `json:"languageChoice"` // stored: "de", "en", or "" to follow Windows
+	ClientName     string     `json:"clientName"`
+	HasIdentity    bool       `json:"hasIdentity"`
+	PublicKey      string     `json:"publicKey"`
+	UnframeoPath   string     `json:"unframeoPath"` // unframeo's config.json, when one exists
+	DataDir        string     `json:"dataDir"`
+	Tools          []ToolInfo `json:"tools"` // ImageMagick, ffmpeg
+}
+
+// ToolInfo is how an external program is set up.
+type ToolInfo struct {
+	ID      string `json:"id"`      // "magick" or "ffmpeg"
+	Path    string `json:"path"`    // "" when not set up
+	Version string `json:"version"` // "" when it does not start
+	Error   string `json:"error"`
 }
 
 func (s *SettingsService) Get() (Settings, error) {
@@ -44,15 +50,18 @@ func (s *SettingsService) Get() (Settings, error) {
 	st := Settings{
 		Language: i18n.Language(), LanguageChoice: cfg.Language,
 		ClientName: cfg.ClientName, HasIdentity: s.store.HasIdentity(),
-		Magick: cfg.Magick,
 	}
-	if cfg.Magick != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		var err error
-		if st.MagickVersion, err = magickVersion(ctx, cfg.Magick); err != nil {
-			st.MagickError = err.Error()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, id := range toolIDs {
+		ti := ToolInfo{ID: id, Path: *tools[id].path(&cfg)}
+		if ti.Path != "" {
+			var err error
+			if ti.Version, err = tools[id].version(ctx, ti.Path); err != nil {
+				ti.Error = err.Error()
+			}
 		}
+		st.Tools = append(st.Tools, ti)
 	}
 	if st.HasIdentity {
 		id, err := s.store.Identity()
@@ -84,41 +93,56 @@ func (s *SettingsService) SetLanguage(choice string) (string, error) {
 	return lang, nil
 }
 
-// FindMagick looks for ImageMagick and, when found, shrinks photos with it
-// from now on (M-02, M-05).
-func (s *SettingsService) FindMagick() error {
-	p := findMagick()
-	if p == "" {
-		return errors.New(i18n.T("ImageMagick nicht gefunden. Installiere es von imagemagick.org oder wähle magick.exe selbst aus",
-			"ImageMagick not found. Install it from imagemagick.org or choose magick.exe yourself"))
+// FindTool looks for ImageMagick ("magick") or ffmpeg ("ffmpeg") and, when
+// found, uses it from now on (M-05).
+func (s *SettingsService) FindTool(id string) error {
+	t, ok := tools[id]
+	if !ok {
+		return fmt.Errorf("unknown tool %q", id)
 	}
-	return s.useMagick(p)
+	p := t.find()
+	if p == "" {
+		return fmt.Errorf(i18n.T("%s nicht gefunden. Installiere es oder wähle %s.exe selbst aus", "%s not found. Install it or choose %s.exe yourself"), t.label, t.exe)
+	}
+	return s.useTool(id, p)
 }
 
-// ChooseMagick lets the user pick magick.exe. Cancelling changes nothing.
-func (s *SettingsService) ChooseMagick() error {
+// ChooseTool lets the user pick the tool's program. Cancelling changes
+// nothing.
+func (s *SettingsService) ChooseTool(id string) error {
+	t, ok := tools[id]
+	if !ok {
+		return fmt.Errorf("unknown tool %q", id)
+	}
 	p, err := application.Get().Dialog.OpenFile().
-		SetTitle(i18n.T("magick.exe wählen", "Choose magick.exe")).
-		AddFilter("ImageMagick (magick.exe)", "*.exe").
+		SetTitle(fmt.Sprintf(i18n.T("%s.exe wählen", "Choose %s.exe"), t.exe)).
+		AddFilter(fmt.Sprintf("%s (%s.exe)", t.label, t.exe), "*.exe").
 		PromptForSingleSelection()
 	if err != nil || p == "" {
 		return err
 	}
-	return s.useMagick(p)
+	return s.useTool(id, p)
 }
 
-// ClearMagick goes back to sending Immich's preview as it is.
-func (s *SettingsService) ClearMagick() error {
-	return s.store.Update(func(c *store.Config) error { c.Magick = ""; return nil })
+// ClearTool stops using the tool: photos go as Immich has them, videos are
+// skipped.
+func (s *SettingsService) ClearTool(id string) error {
+	return s.useTool(id, "")
 }
 
-func (s *SettingsService) useMagick(p string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if _, err := magickVersion(ctx, p); err != nil {
-		return err
+func (s *SettingsService) useTool(id, p string) error {
+	t, ok := tools[id]
+	if !ok {
+		return fmt.Errorf("unknown tool %q", id)
 	}
-	return s.store.Update(func(c *store.Config) error { c.Magick = p; return nil })
+	if p != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := t.version(ctx, p); err != nil {
+			return err
+		}
+	}
+	return s.store.Update(func(c *store.Config) error { *t.path(c) = p; return nil })
 }
 
 // SetClientName changes how frames show this app as the sender of photos.

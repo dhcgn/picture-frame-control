@@ -18,8 +18,10 @@ type Asset struct {
 	ID       string
 	Checksum string
 	Taken    time.Time
-	Name     string // original file name, for messages
-	Caption  string // shown with the photo on the frame
+	Name     string        // original file name, for messages
+	Caption  string        // shown with the photo on the frame
+	Length   time.Duration // a video's running time; zero for photos
+	Video    bool
 }
 
 // Entry records one asset this app put on the frame.

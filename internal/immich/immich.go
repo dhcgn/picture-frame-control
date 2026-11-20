@@ -89,12 +89,21 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 		if in != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
-		resp, err := c.hc.Do(req)
+		hc := c.hc
+		stream, streaming := out.(*streamBody)
+		if streaming {
+			hc = &http.Client{Transport: c.hc.Transport} // no overall timeout; ctx ends it
+		}
+		resp, err := hc.Do(req)
 		if err == nil {
 			if resp.StatusCode < 300 {
 				defer resp.Body.Close()
 				if out == nil {
 					return nil
+				}
+				if streaming {
+					_, err = io.Copy(stream.w, resp.Body)
+					return err
 				}
 				if raw, ok := out.(*rawBody); ok {
 					raw.contentType = resp.Header.Get("Content-Type")
@@ -226,7 +235,27 @@ type Asset struct {
 	LocalDateTime    string `json:"localDateTime"` // wall-clock time where taken, marked as UTC
 	FileCreatedAt    string `json:"fileCreatedAt"` // the moment it was taken, UTC
 	OriginalFileName string `json:"originalFileName"`
+	Duration         string `json:"duration"` // videos: "h:mm:ss.ffffff"
 }
+
+// Length is a video's running time, zero when Immich does not say.
+func (a Asset) Length() time.Duration {
+	var h, m int
+	var s float64
+	if n, _ := fmt.Sscanf(a.Duration, "%d:%d:%f", &h, &m, &s); n != 3 {
+		return 0
+	}
+	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(s*float64(time.Second))
+}
+
+// Original writes an asset's original file to w. A video can take minutes,
+// so only ctx limits how long it may take.
+func (c *Client) Original(ctx context.Context, id string, w io.Writer) error {
+	return c.call(ctx, http.MethodGet, "/assets/"+url.PathEscape(id)+"/original", nil, &streamBody{w})
+}
+
+// streamBody makes call copy the answer to w instead of decoding JSON.
+type streamBody struct{ w io.Writer }
 
 // Media types a frame can show.
 const (

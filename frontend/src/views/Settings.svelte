@@ -32,18 +32,34 @@
     }
   }
 
-  let magickBusy = $state(false)
-  async function magick(change: () => Promise<void>) {
-    magickBusy = true
+  let toolBusy = $state(false)
+  async function tool(change: () => Promise<void>) {
+    toolBusy = true
     try {
       await change()
       await load()
     } catch (e) {
       notify(errText(e), 'error')
     } finally {
-      magickBusy = false
+      toolBusy = false
     }
   }
+  const toolText = $derived<Record<string, { name: string; what: string; on: string; off: string; broken: string }>>({
+    magick: {
+      name: 'ImageMagick',
+      what: t('Optional. Bringt jedes Bild auf die Auflösung des Frames, als WebP', 'Optional. Brings every photo down to the frame’s resolution, as WebP'),
+      on: t('Neue Bilder gehen verkleinert auf die Frames.', 'New photos go to the frames shrunk.'),
+      off: t('Nicht eingerichtet: Die Frames bekommen die Bilder aus Immich unverändert.', 'Not set up: frames get the photos from Immich as they are.'),
+      broken: t('Bis das behoben ist, gehen die Bilder unverändert.', 'Until that is fixed, photos go as they are.'),
+    },
+    ffmpeg: {
+      name: 'ffmpeg',
+      what: t('Optional. Wandelt Videos so um, wie Frameo sie abspielt', 'Optional. Converts videos the way Frameo plays them'),
+      on: t('Videos gehen mit: H.264, höchstens so groß wie der Bildschirm, 30 fps, bis 4:59.', 'Videos go too: H.264, no larger than the screen, 30 fps, up to 4:59.'),
+      off: t('Nicht eingerichtet: Videos werden übersprungen.', 'Not set up: videos are skipped.'),
+      broken: t('Bis das behoben ist, werden Videos übersprungen.', 'Until that is fixed, videos are skipped.'),
+    },
+  })
 
   async function lookForUpdate() {
     checking = true
@@ -145,32 +161,35 @@
 </form>
 
 {#if s}
-  <h2 class="group-title">{t('Bilder verkleinern', 'Shrinking photos')}</h2>
+  <h2 class="group-title">{t('Bilder und Videos aufbereiten', 'Preparing photos and videos')}</h2>
   <div class="form panel">
-    <div class="row">
-      <span class="k">ImageMagick<small>{t('Optional. Bringt jedes Bild auf die Auflösung des Frames, als WebP', 'Optional. Brings every photo down to the frame’s resolution, as WebP')}</small></span>
-      <div>
-        {#if s.magick}
-          <div class="mono path">{s.magick}</div>
-          {#if s.magickVersion}
-            <p class="hint ok">{t(`ImageMagick ${s.magickVersion}. Neue Bilder gehen verkleinert auf die Frames.`, `ImageMagick ${s.magickVersion}. New photos go to the frames shrunk.`)}</p>
+    {#each s.tools ?? [] as tl (tl.id)}
+      {@const d = toolText[tl.id]}
+      <div class="row">
+        <span class="k">{d.name}<small>{d.what}</small></span>
+        <div>
+          {#if tl.path}
+            <div class="mono path">{tl.path}</div>
+            {#if tl.version}
+              <p class="hint ok">{d.name} {tl.version}. {d.on}</p>
+            {:else}
+              <p class="hint warn">{tl.error} {d.broken}</p>
+            {/if}
           {:else}
-            <p class="hint warn">{s.magickError} {t('Bis das behoben ist, gehen die Bilder als Vorschau aus Immich.', 'Until that is fixed, photos go as Immich’s preview.')}</p>
+            <p class="muted">{d.off}</p>
           {/if}
-        {:else}
-          <p class="muted">{t('Nicht eingerichtet: Die Frames bekommen die Vorschau aus Immich unverändert.', 'Not set up: frames get Immich’s preview as it is.')}</p>
-        {/if}
-        <div class="buttons">
-          <button class="btn" disabled={magickBusy} onclick={() => magick(SettingsService.FindMagick)}>{t('Suchen', 'Find')}</button>
-          <button class="btn" disabled={magickBusy} onclick={() => magick(SettingsService.ChooseMagick)}>{t('Auswählen…', 'Choose…')}</button>
-          {#if s.magick}
-            <button class="btn" disabled={magickBusy} onclick={() => magick(SettingsService.ClearMagick)}>{t('Nicht mehr nutzen', 'Stop using it')}</button>
-          {/if}
+          <div class="buttons">
+            <button class="btn" disabled={toolBusy} onclick={() => tool(() => SettingsService.FindTool(tl.id))}>{t('Suchen', 'Find')}</button>
+            <button class="btn" disabled={toolBusy} onclick={() => tool(() => SettingsService.ChooseTool(tl.id))}>{t('Auswählen…', 'Choose…')}</button>
+            {#if tl.path}
+              <button class="btn" disabled={toolBusy} onclick={() => tool(() => SettingsService.ClearTool(tl.id))}>{t('Nicht mehr nutzen', 'Stop using it')}</button>
+            {/if}
+          </div>
         </div>
-        <p class="hint">{t('Gilt für Bilder, die ab jetzt gesendet werden. Was schon auf einem Frame ist, bleibt, wie es ist. Der Frame schneidet weiterhin selbst zu.',
-          'Applies to photos sent from now on. What is already on a frame stays as it is. The frame still does its own cropping.')}</p>
       </div>
-    </div>
+    {/each}
+    <p class="hint tools-hint">{t('Gilt für alles, was ab jetzt gesendet wird. Was schon auf einem Frame ist, bringt „Alles neu senden“ in der Sync-Ansicht auf den neuen Stand.',
+      'Applies to everything sent from now on. To bring what is already on a frame up to date, use “Resend everything” on the Sync page.')}</p>
   </div>
 
   <h2 class="group-title">{t('Identität', 'Identity')}</h2>
@@ -231,6 +250,7 @@
 
 <style>
   .key, .path { word-break: break-all; margin-bottom: 10px; }
+  .tools-hint { grid-column: 1 / -1; padding: 14px 18px; margin: 0; }
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   .row input { margin-right: 6px; }
   .link { all: unset; cursor: pointer; text-decoration: underline; }

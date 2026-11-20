@@ -172,6 +172,38 @@ func TestSendPhoto(t *testing.T) {
 	}
 }
 
+// TestSendVideo checks the layout a real frame accepted and played on
+// 2026-11-20: one VIDEO_WITH_THUMB header sized for the video, the still
+// described in extra, and the still's bytes right after the video's.
+func TestSendVideo(t *testing.T) {
+	frame := frameotest.New()
+	c := setup(t, frame)
+	dir := t.TempDir()
+	video, thumb := filepath.Join(dir, "v.mp4"), filepath.Join(dir, "v.jpg")
+	videoData, thumbData := bytes.Repeat([]byte("v"), 40000), []byte("\xff\xd8\xffstill")
+	_ = os.WriteFile(video, videoData, 0o600)
+	_ = os.WriteFile(thumb, thumbData, 0o600)
+
+	id, err := c.SendVideo(testCtx(t), frameo.Video{Path: video, Thumb: thumb, Caption: "clip", Fit: true})
+	if err != nil {
+		t.Fatalf("SendVideo: %v", err)
+	}
+	photos := frame.Photos()
+	if len(photos) != 1 {
+		t.Fatalf("frame holds %d items, want 1", len(photos))
+	}
+	m := photos[0].Media
+	if m.GetId() != id || m.GetType() != pb.Media_VIDEO_WITH_THUMB || m.GetFileExtension() != "mp4" || m.GetScaleType() != pb.Media_FIT_INSIDE || m.GetCaption() != "clip" {
+		t.Errorf("header = %v", m)
+	}
+	if len(m.GetExtra()) != 1 || int(m.GetExtra()[0].GetSize()) != len(thumbData) || m.GetExtra()[0].GetFileExtension() != "jpg" {
+		t.Errorf("extra = %v, want the still's size and jpg", m.GetExtra())
+	}
+	if !bytes.Equal(photos[0].Data, videoData) || !bytes.Equal(photos[0].Extra, thumbData) {
+		t.Errorf("got %d video and %d still bytes, want %d and %d", len(photos[0].Data), len(photos[0].Extra), len(videoData), len(thumbData))
+	}
+}
+
 func TestSendPhotoSegmentsByDefault(t *testing.T) {
 	frame := frameotest.New()
 	c := setup(t, frame)

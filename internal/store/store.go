@@ -60,6 +60,7 @@ type Config struct {
 	ClientName   string  `json:"clientName"`
 	ImmichServer string  `json:"immichServer"` // origin, e.g. https://photos.example.lan
 	Magick       string  `json:"magick"`       // magick.exe; empty sends Immich's preview as it is
+	FFmpeg       string  `json:"ffmpeg"`       // ffmpeg.exe; empty skips videos
 	Frames       []Frame `json:"frames"`
 }
 

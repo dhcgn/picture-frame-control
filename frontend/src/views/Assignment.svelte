@@ -204,7 +204,7 @@
                 <span class="big">{n(r.images)}</span>
                 {f.limit ? t(`von ${n(f.limit)}`, `of ${n(f.limit)}`) : t('kein Limit', 'no limit')}
                 {#if f.limit && r.images > f.limit}<br /><span class="warn">{t(`${n(r.images - f.limit)} über dem Limit`, `${n(r.images - f.limit)} over the limit`)}</span>{/if}
-                {#if r.videos}<br /><span class="muted">{t(`${n(r.videos)} Videos, vorerst übersprungen`, `${n(r.videos)} videos, skipped for now`)}</span>{/if}
+                {#if r.videos}<br /><span class="muted">{t(`dazu ${n(r.videos)} Videos, wenn ffmpeg eingerichtet ist`, `plus ${n(r.videos)} videos when ffmpeg is set up`)}</span>{/if}
               {/if}
             </td>
           {/each}

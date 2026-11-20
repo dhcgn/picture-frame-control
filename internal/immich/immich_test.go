@@ -10,7 +10,21 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
+
+func TestAssetLength(t *testing.T) {
+	for in, want := range map[string]time.Duration{
+		"0:00:05.000000": 5 * time.Second,
+		"0:04:59.500000": 4*time.Minute + 59500*time.Millisecond,
+		"1:02:03.000000": time.Hour + 2*time.Minute + 3*time.Second,
+		"":               0, // Immich did not say
+	} {
+		if got := (Asset{Duration: in}).Length(); got != want {
+			t.Errorf("Length(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
 
 func TestAssetsPagesRetriesAndFilters(t *testing.T) {
 	var calls atomic.Int32
