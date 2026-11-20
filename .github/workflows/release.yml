@@ -5,9 +5,15 @@ name: Release
 on:
   push:
     tags: ['v*']
-  # Dry run: writes the notes for the commits since the last tag into the job
-  # summary and publishes nothing.
+  # Run by hand: without a tag, a dry run that writes the notes for the
+  # commits since the last tag into the job summary and changes nothing.
+  # With a tag, it (re)writes the notes of that existing release.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release whose notes to rewrite, e.g. v0.1.0. Empty: dry run.'
+        required: false
+        default: ''
 
 permissions:
   contents: write # create the release
@@ -24,6 +30,9 @@ jobs:
       # written by AI from the commits since the last release. Without it,
       # the release gets GitHub's generated notes only. See README.
       COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
+      # The release the notes are for: the pushed tag, or the one named when
+      # run by hand. Empty for a dry run, which looks at main.
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
     outputs:
       body: ${{ steps.notes.outputs.body }}
     steps:
@@ -33,9 +42,11 @@ jobs:
 
       - name: Collect the changes since the previous release
         run: |
-          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          end=${TAG:-HEAD}
+          prev=$(git describe --tags --abbrev=0 "${end}^" 2>/dev/null || true)
+          echo "PREV=$prev" >> "$GITHUB_ENV"
           {
-            echo "Hier sind die Commits von Picture-Frame-Control ${prev:-(erste Version)} bis ${GITHUB_REF_NAME}."
+            echo "Hier sind die Commits von Picture-Frame-Control ${prev:-(erste Version)} bis ${TAG:-heute}."
             echo "Picture-Frame-Control ist eine Windows-App, die Alben und Tags aus Immich auf Frameo-Bilderrahmen spiegelt."
             echo "Schreibe daraus Release Notes auf Deutsch für Anwender:"
             echo "- Abschnitte \"Neu\", \"Verbessert\", \"Behoben\", nur wenn es dazu etwas gibt"
@@ -43,7 +54,7 @@ jobs:
             echo "- interne Änderungen (Tests, Workflows, Refactoring) weglassen oder in einem Satz unter \"Intern\" zusammenfassen"
             echo "- nur Markdown, ohne Einleitung und ohne Schlusssatz"
             echo
-            git log --no-merges --format='* %s%n%b' "${prev:+$prev..}${GITHUB_REF_NAME}"
+            git log --no-merges --format='* %s%n%b' "${prev:+$prev..}${end}"
           } > prompt.txt
 
       - name: Install Copilot CLI
@@ -80,6 +91,25 @@ jobs:
           else
             echo "No AI notes; the release gets GitHub's generated notes." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      # Only when run by hand with a tag: replace that release's notes, keeping
+      # the changelog link GitHub adds to new releases.
+      - name: Rewrite the notes of the existing release
+        if: github.event_name == 'workflow_dispatch' && env.TAG != '' && steps.ai.outputs.response-file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
+        run: |
+          {
+            cat "$RESPONSE_FILE"
+            echo
+            if [ -n "$PREV" ]; then
+              echo "**Full Changelog**: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
+            else
+              echo "**Full Changelog**: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commits/$TAG"
+            fi
+          } > notes.md
+          gh release edit "$TAG" --notes-file notes.md
 
   release:
     name: Build & publish (windows)
