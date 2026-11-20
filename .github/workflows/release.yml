@@ -46,13 +46,14 @@ jobs:
           prev=$(git describe --tags --abbrev=0 "${end}^" 2>/dev/null || true)
           echo "PREV=$prev" >> "$GITHUB_ENV"
           {
-            echo "Hier sind die Commits von Picture-Frame-Control ${prev:-(erste Version)} bis ${TAG:-heute}."
-            echo "Picture-Frame-Control ist eine Windows-App, die Alben und Tags aus Immich auf Frameo-Bilderrahmen spiegelt."
-            echo "Schreibe daraus Release Notes auf Deutsch für Anwender:"
-            echo "- Abschnitte \"Neu\", \"Verbessert\", \"Behoben\", nur wenn es dazu etwas gibt"
-            echo "- je Punkt ein kurzer Satz, was sich für Anwender ändert, keine Commit-Hashes"
-            echo "- interne Änderungen (Tests, Workflows, Refactoring) weglassen oder in einem Satz unter \"Intern\" zusammenfassen"
-            echo "- nur Markdown, ohne Einleitung und ohne Schlusssatz"
+            echo "Here are the commits of Picture-Frame-Control from ${prev:-the first version} to ${TAG:-today}."
+            echo "Picture-Frame-Control is a Windows app that mirrors albums and tags from Immich onto Frameo picture frames."
+            echo "Write release notes in English for its users:"
+            echo "- sections \"New\", \"Improved\", \"Fixed\", only those that have entries"
+            echo "- one short sentence per item on what changes for users, no commit hashes"
+            echo "- leave out internal changes (tests, workflows, refactoring) or sum them up in one sentence under \"Internal\""
+            echo "- write in English even where a commit message is in another language"
+            echo "- Markdown only, no introduction and no closing sentence"
             echo
             git log --no-merges --format='* %s%n%b' "${prev:+$prev..}${end}"
           } > prompt.txt
@@ -68,7 +69,7 @@ jobs:
         uses: actions/ai-inference@v3
         with:
           prompt-file: prompt.txt
-          system-prompt: Du schreibst knappe, sachliche Release Notes. Du erfindest nichts, was nicht in den Commits steht.
+          system-prompt: You write concise, factual release notes in English. You add nothing that is not in the commits.
           # Empty lets the Copilot CLI choose; the action's default (gpt-4.1)
           # is no longer offered and fails with "Model is not available".
           model: ''

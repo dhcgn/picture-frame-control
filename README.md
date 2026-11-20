@@ -10,7 +10,7 @@ A Windows app that manages Frameo digital photo frames and mirrors albums and ta
 - Sync: send new photos, remove the ones no longer selected, and touch photos the app did not send only when you say so
 - Optionally use the album name as the photo caption
 
-The user interface is in German.
+The user interface is in English and German; by default it follows the Windows display language.
 
 ## Installation
 
