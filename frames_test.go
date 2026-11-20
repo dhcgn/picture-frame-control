@@ -20,6 +20,34 @@ import (
 	"github.com/dhcgn/picture-frame-control/internal/store"
 )
 
+// withFakeFrame pairs a store with frame, served through a fake grid, and
+// returns a FrameService that reaches it over the relay.
+func withFakeFrame(t *testing.T, frame *frameotest.Frame) (*FrameService, *store.Store, store.Frame) {
+	t.Helper()
+	grid, err := sdgtest.NewGrid()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = grid.Close() })
+	peer, err := grid.AddDevice(func(tun *sdgtest.Tunnel) { _ = frame.Serve(tun) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := store.NewFrame(sdg.PeerID(peer), "Test")
+	f.Mode = "relay" // no mDNS in tests
+	if err := st.AddFrame(f); err != nil {
+		t.Fatal(err)
+	}
+	s := NewFrameService(st, t.TempDir())
+	s.servers = []sdg.Endpoint{{Host: grid.Host(), Port: grid.Port()}}
+	t.Cleanup(s.closeAll)
+	return s, st, f
+}
+
 // TestFrameServiceAgainstFakeFrame drives the service the way the UI does --
 // probe, list, thumbnails, delete -- against a fake frame behind a fake grid,
 // and checks that all of it runs over one reused connection.
@@ -40,28 +68,7 @@ func TestFrameServiceAgainstFakeFrame(t *testing.T) {
 		22: {Data: []byte("\xff\xd8\xfforiginal-of-22"), Preview: preview, Extension: "jpg"},
 	}
 
-	grid, err := sdgtest.NewGrid()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = grid.Close() })
-	peer, err := grid.AddDevice(func(tun *sdgtest.Tunnel) { _ = frame.Serve(tun) })
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	st, err := store.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := store.NewFrame(sdg.PeerID(peer), "Test")
-	f.Mode = "relay" // no mDNS in tests
-	if err := st.AddFrame(f); err != nil {
-		t.Fatal(err)
-	}
-	s := NewFrameService(st, t.TempDir())
-	s.servers = []sdg.Endpoint{{Host: grid.Host(), Port: grid.Port()}}
-	t.Cleanup(s.closeAll)
+	s, st, f := withFakeFrame(t, frame)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

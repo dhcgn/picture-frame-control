@@ -1,16 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { app, loadFrames, loadImmich, probeAll } from './lib/state.svelte'
+  import { app, listenSync, loadFrames, loadImmich, probeAll } from './lib/state.svelte'
   import Frames from './views/Frames.svelte'
   import FrameDetail from './views/FrameDetail.svelte'
   import Assignment from './views/Assignment.svelte'
+  import Sync from './views/Sync.svelte'
   import Settings from './views/Settings.svelte'
 
-  type View = 'frames' | 'detail' | 'assignment' | 'settings'
+  type View = 'frames' | 'detail' | 'assignment' | 'sync' | 'settings'
   let view = $state<View>('frames')
   let current = $state('')
 
   onMount(async () => {
+    listenSync()
     loadImmich()
     await loadFrames()
     probeAll()
@@ -45,7 +47,9 @@
       Frames <span class="count">{app.frames.length}</span>
     </button>
     <button class="nav" aria-current={view === 'assignment' ? 'page' : undefined} onclick={() => go('assignment')}>Zuordnung</button>
-    <button class="nav" disabled title="Kommt mit Meilenstein M3">Sync <span class="count">bald</span></button>
+    <button class="nav" aria-current={view === 'sync' ? 'page' : undefined} onclick={() => go('sync')}>
+      Sync {#if app.sync.running}<span class="count"><span class="dot busy"></span>läuft</span>{/if}
+    </button>
     <button class="nav" aria-current={view === 'settings' ? 'page' : undefined} onclick={() => go('settings')}>Einstellungen</button>
     <button class="foot" onclick={() => go('settings')} title={app.immich.error || app.immich.conn.server}>
       <span class="dot {immichLine.dot}"></span><b>{immichLine.text}</b>
@@ -62,6 +66,8 @@
       {/key}
     {:else if view === 'assignment'}
       <Assignment onsettings={() => go('settings')} onframes={() => go('frames')} />
+    {:else if view === 'sync'}
+      <Sync onassign={() => go('assignment')} />
     {:else}
       <Settings />
     {/if}

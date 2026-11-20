@@ -90,7 +90,8 @@
       }
       await loadFrames()
       reset()
-      notify('Zuordnung gespeichert. Der Sync folgt mit dem nächsten Meilenstein.')
+      app.sync.plans = null // the preview no longer matches
+      notify('Zuordnung gespeichert. Auf die Frames kommt sie mit dem nächsten Sync.')
     } catch (e) {
       notify(errText(e), 'error')
     } finally {

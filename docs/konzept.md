@@ -217,7 +217,7 @@ Events Go → UI: `sync:progress {frame, phase, done, total, asset}` · `sync:lo
 | M0 ✓ | Go-Modul, Wails-v3-Template, LICENSE/NOTICE, unframeo-Pakete übernehmen, `link` extrahieren | Build und übernommene Tests grün (2026-11-20) |
 | M1 ✓ | Frame-Verwaltung F-01..F-13, store mit DPAPI, unframeo-Import | Frames per UI steuerbar (2026-11-20, lesend am echten Frame geprüft) |
 | M2 ✓ | Immich-Client, Alben/Tags, Zuordnungsmatrix | Quellen je Frame wählbar (2026-11-20, gegen Immich 3.4.0 geprüft) |
-| M3 | Sync für Bilder ohne magick, syncplan mit Test, Live-Test O-2 | Spiegeln funktioniert |
+| M3 ✓ | Sync für Bilder ohne magick, syncplan mit Test, Live-Test O-2 | Spiegeln funktioniert gegen Fake-Frame und Fake-Immich; Vorschau gegen echte Daten geprüft. Echter Sync und O-2 stehen aus (Protokollzeile „ID-Abgleich“) |
 | M4 | magick/WebP, Tool-Erkennung, Cache, Live-Test O-3 | Kleinere Dateien |
 | M5 | Spike Video-Protokoll, danach ffmpeg-Pipeline | Videos auf dem Frame |
 

@@ -18,6 +18,8 @@ var assets embed.FS
 
 func init() {
 	application.RegisterEvent[SendProgress]("send:progress")
+	application.RegisterEvent[SyncProgress]("sync:progress")
+	application.RegisterEvent[SyncLog]("sync:log")
 }
 
 func main() {
@@ -33,7 +35,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	frames := NewFrameService(st, filepath.Join(cache, "picture-frame-control"))
+	cacheDir := filepath.Join(cache, "picture-frame-control")
+	frames := NewFrameService(st, cacheDir)
+	im := &ImmichService{store: st}
+	syncer := &SyncService{
+		store: st, frames: frames, immich: im, dataDir: dir, cacheDir: cacheDir,
+		emit: func(name string, data any) { application.Get().Event.Emit(name, data) },
+	}
 
 	app := application.New(application.Options{
 		Name:        "Picture-Frame-Control",
@@ -41,7 +49,8 @@ func main() {
 		Services: []application.Service{
 			application.NewService(frames),
 			application.NewService(&SettingsService{store: st, frames: frames}),
-			application.NewService(&ImmichService{store: st}),
+			application.NewService(im),
+			application.NewService(syncer),
 		},
 		Assets: application.AssetOptions{
 			Handler:    application.AssetFileServerFS(assets),

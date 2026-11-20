@@ -93,6 +93,11 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 				if out == nil {
 					return nil
 				}
+				if raw, ok := out.(*rawBody); ok {
+					raw.contentType = resp.Header.Get("Content-Type")
+					raw.data, err = io.ReadAll(resp.Body)
+					return err
+				}
 				if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 					return fmt.Errorf("Antwort von Immich auf %s nicht lesbar: %w", path, err)
 				}
@@ -121,6 +126,30 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 			return ctx.Err()
 		}
 	}
+}
+
+// rawBody makes call hand back the answer's bytes instead of decoding JSON.
+type rawBody struct {
+	data        []byte
+	contentType string
+}
+
+// Preview downloads an asset's preview image: about 1440 pixels on the long
+// side, already rotated upright, JPEG unless the server is set otherwise. It
+// returns the bytes and the file extension that fits them.
+func (c *Client) Preview(ctx context.Context, id string) ([]byte, string, error) {
+	var r rawBody
+	if err := c.call(ctx, http.MethodGet, "/assets/"+url.PathEscape(id)+"/thumbnail?size=preview", nil, &r); err != nil {
+		return nil, "", err
+	}
+	ext := "jpg"
+	switch {
+	case strings.Contains(r.contentType, "webp"):
+		ext = "webp"
+	case strings.Contains(r.contentType, "png"):
+		ext = "png"
+	}
+	return r.data, ext, nil
 }
 
 // Version is the server's version.
@@ -184,7 +213,8 @@ type Asset struct {
 	ID               string `json:"id"`
 	Type             string `json:"type"` // IMAGE or VIDEO
 	Checksum         string `json:"checksum"`
-	LocalDateTime    string `json:"localDateTime"`
+	LocalDateTime    string `json:"localDateTime"` // wall-clock time where taken, marked as UTC
+	FileCreatedAt    string `json:"fileCreatedAt"` // the moment it was taken, UTC
 	OriginalFileName string `json:"originalFileName"`
 }
 

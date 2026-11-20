@@ -1,8 +1,11 @@
-import { FrameService, ImmichService } from '../../bindings/github.com/dhcgn/picture-frame-control'
-import type { Connection, FrameStatus, ServerInfo, Source } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
+import { Events } from '@wailsio/runtime'
+import { FrameService, ImmichService, SyncService } from '../../bindings/github.com/dhcgn/picture-frame-control'
+import type {
+  Connection, FramePlan, FrameResult, FrameStatus, ServerInfo, Source, SyncLog, SyncProgress,
+} from '../../bindings/github.com/dhcgn/picture-frame-control/models'
 import type { Frame } from '../../bindings/github.com/dhcgn/picture-frame-control/internal/store/models'
 
-export type { Frame, FrameStatus, Source }
+export type { Frame, FramePlan, FrameStatus, Source }
 
 /** Shared app state. */
 export const app = $state({
@@ -19,7 +22,38 @@ export const app = $state({
   sourcesLoading: false,
   sourcesError: '',
   dirty: false, // unsaved edits in the assignment matrix
+  // Kept here, not in the view, so a running sync survives switching views.
+  sync: {
+    plans: null as FramePlan[] | null,
+    planning: false,
+    running: false,
+    progress: {} as Record<string, SyncProgress>,
+    log: [] as SyncLog[],
+    results: null as FrameResult[] | null,
+  },
 })
+
+/** Subscribes to the sync events; call once. */
+export function listenSync() {
+  Events.On('sync:progress', (ev) => {
+    const p = ev.data as SyncProgress
+    app.sync.progress[p.frame] = p
+  })
+  Events.On('sync:log', (ev) => {
+    app.sync.log.push(ev.data as SyncLog)
+  })
+}
+
+export async function planSync() {
+  app.sync.planning = true
+  try {
+    app.sync.plans = (await SyncService.Preview(app.frames.map((f) => f.id))) ?? []
+  } catch (e) {
+    notify(errText(e), 'error')
+  } finally {
+    app.sync.planning = false
+  }
+}
 
 export async function loadImmich() {
   app.immich.conn = await ImmichService.Connection()
