@@ -103,6 +103,7 @@ jobs:
           {
             cat "$RESPONSE_FILE"
             echo
+            echo # a blank line, or the link joins the last list item
             if [ -n "$PREV" ]; then
               echo "**Full Changelog**: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
             else

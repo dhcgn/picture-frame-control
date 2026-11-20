@@ -5,6 +5,7 @@
   import type { Selection } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
   import FrameArt from '../lib/FrameArt.svelte'
   import { app, errText, isPortrait, loadFrames, loadSources, nameOf, notify, sourceIds, type Frame, type Source } from '../lib/state.svelte'
+  import { num, t } from '../lib/i18n.svelte'
 
   let { onsettings, onframes }: { onsettings: () => void; onframes: () => void } = $props()
 
@@ -47,21 +48,21 @@
   $effect(() => {
     if (!app.sources) return
     const keys = Object.fromEntries(app.frames.map((f) => [f.id, keyOf(picks[f.id] ?? [])]))
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       for (const [id, key] of Object.entries(keys)) {
         if (counted[id] === key) continue
         counted[id] = key
         count(id, key)
       }
     }, 350)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   })
 
   function split(ids: Iterable<string>) {
-    const a: string[] = []
-    const t: string[] = []
-    for (const id of ids) (kindOf.get(id) === 'tag' ? t : a).push(id)
-    return { albums: a, tags: t }
+    const albums: string[] = []
+    const tags: string[] = []
+    for (const id of ids) (kindOf.get(id) === 'tag' ? tags : albums).push(id)
+    return { albums, tags }
   }
 
   async function count(id: string, key: string) {
@@ -91,7 +92,7 @@
       await loadFrames()
       reset()
       app.sync.plans = null // the preview no longer matches
-      notify('Zuordnung gespeichert. Auf die Frames kommt sie mit dem nächsten Sync.')
+      notify(t('Zuordnung gespeichert. Auf die Frames kommt sie mit dem nächsten Sync.', 'Assignment saved. The next sync brings it to the frames.'))
     } catch (e) {
       notify(errText(e), 'error')
     } finally {
@@ -99,49 +100,49 @@
     }
   }
 
-  const n = (x: number) => x.toLocaleString('de-DE')
+  const n = num
 </script>
 
 <div class="head">
   <div>
-    <h1>Zuordnung</h1>
-    <p>Welche Alben und Tags auf welchen Frame kommen.</p>
+    <h1>{t('Zuordnung', 'Assignment')}</h1>
+    <p>{t('Welche Alben und Tags auf welchen Frame kommen.', 'Which albums and tags go onto which frame.')}</p>
   </div>
   {#if app.immich.state === 'ok' && app.frames.length}
     <div class="actions">
-      <button class="btn" onclick={() => loadSources(true)} disabled={app.sourcesLoading}>Aus Immich neu laden</button>
-      <button class="btn" onclick={reset} disabled={!dirty || saving}>Verwerfen</button>
-      <button class="btn primary" onclick={save} disabled={!dirty || saving}>{saving ? 'Speichere…' : 'Speichern'}</button>
+      <button class="btn" onclick={() => loadSources(true)} disabled={app.sourcesLoading}>{t('Aus Immich neu laden', 'Reload from Immich')}</button>
+      <button class="btn" onclick={reset} disabled={!dirty || saving}>{t('Verwerfen', 'Discard')}</button>
+      <button class="btn primary" onclick={save} disabled={!dirty || saving}>{saving ? t('Speichere…', 'Saving…') : t('Speichern', 'Save')}</button>
     </div>
   {/if}
 </div>
 
 {#if app.immich.state === 'none' || app.immich.state === 'error'}
   <div class="panel empty">
-    <p><strong>{app.immich.state === 'none' ? 'Immich ist noch nicht verbunden.' : 'Immich ist gerade nicht erreichbar.'}</strong></p>
+    <p><strong>{app.immich.state === 'none' ? t('Immich ist noch nicht verbunden.', 'Immich is not connected yet.') : t('Immich ist gerade nicht erreichbar.', 'Immich is not reachable right now.')}</strong></p>
     {#if app.immich.error}<p class="warn">{app.immich.error}</p>{/if}
-    <p class="muted">Server-Adresse und API-Key trägst du in den Einstellungen ein.</p>
-    <button class="btn primary" onclick={onsettings}>Zu den Einstellungen</button>
+    <p class="muted">{t('Server-Adresse und API-Key trägst du in den Einstellungen ein.', 'Enter the server address and API key in the settings.')}</p>
+    <button class="btn primary" onclick={onsettings}>{t('Zu den Einstellungen', 'Go to settings')}</button>
   </div>
 {:else if app.frames.length === 0}
   <div class="panel empty">
-    <p><strong>Noch kein Frame gekoppelt.</strong></p>
-    <p class="muted">Erst wenn ein Frame gekoppelt ist, lässt sich ihm etwas zuordnen.</p>
-    <button class="btn primary" onclick={onframes}>Zu den Frames</button>
+    <p><strong>{t('Noch kein Frame gekoppelt.', 'No frame paired yet.')}</strong></p>
+    <p class="muted">{t('Erst wenn ein Frame gekoppelt ist, lässt sich ihm etwas zuordnen.', 'Once a frame is paired, you can assign albums and tags to it.')}</p>
+    <button class="btn primary" onclick={onframes}>{t('Zu den Frames', 'Go to frames')}</button>
   </div>
 {:else if app.sourcesError}
   <div class="panel empty">
     <p class="warn">{app.sourcesError}</p>
-    <button class="btn" onclick={() => loadSources(true)}>Erneut laden</button>
+    <button class="btn" onclick={() => loadSources(true)}>{t('Erneut laden', 'Reload')}</button>
   </div>
 {:else if !app.sources}
-  <p class="muted">Lade Alben und Tags aus Immich und zähle ihre Bilder…</p>
+  <p class="muted">{t('Lade Alben und Tags aus Immich und zähle ihre Bilder…', 'Loading albums and tags from Immich and counting their photos…')}</p>
 {:else}
   <div class="filterbar">
-    <input type="search" placeholder="Alben und Tags durchsuchen" aria-label="Alben und Tags durchsuchen" bind:value={query} />
-    <label><input type="checkbox" bind:checked={onlyAssigned} /> Nur zugeordnete zeigen</label>
+    <input type="search" placeholder={t('Alben und Tags durchsuchen', 'Search albums and tags')} aria-label={t('Alben und Tags durchsuchen', 'Search albums and tags')} bind:value={query} />
+    <label><input type="checkbox" bind:checked={onlyAssigned} /> {t('Nur zugeordnete zeigen', 'Show assigned only')}</label>
     <span class="muted count">
-      {app.sources.filter((s) => s.kind === 'album').length} Alben · {app.sources.filter((s) => s.kind === 'tag').length} Tags
+      {app.sources.filter((s) => s.kind === 'album').length} {t('Alben', 'albums')} · {app.sources.filter((s) => s.kind === 'tag').length} Tags
     </span>
   </div>
 
@@ -149,8 +150,8 @@
     <table>
       <thead>
         <tr>
-          <th>Quelle</th>
-          <th class="num">Bilder und Videos</th>
+          <th>{t('Quelle', 'Source')}</th>
+          <th class="num">{t('Bilder und Videos', 'Photos and videos')}</th>
           {#each app.frames as f (f.id)}
             <th class="fr">
               <div class="mini" class:portrait={isPortrait(f)}><FrameArt frame={f} mini /></div>
@@ -169,41 +170,41 @@
                 <td style:padding-left={`${14 + (query ? 0 : s.depth * 20)}px`} title={s.path}>
                   {#if query && s.depth}<span class="muted">{s.path.slice(0, s.path.length - s.name.length)}</span>{s.name}
                   {:else}{#if s.depth}<span class="branch">└</span>{/if}{s.name}{/if}
-                  {#if s.shared}<span class="muted"> · geteilt</span>{/if}
+                  {#if s.shared}<span class="muted"> · {t('geteilt', 'shared')}</span>{/if}
                 </td>
                 <td class="num mono">{s.count >= 0 ? n(s.count) : '–'}</td>
                 {#each app.frames as f (f.id)}
                   <td class="c">
-                    <input type="checkbox" aria-label={`${s.name} auf ${nameOf(f)}`} checked={picks[f.id]?.has(s.id)} onchange={() => toggle(f.id, s.id)} />
+                    <input type="checkbox" aria-label={t(`${s.name} auf ${nameOf(f)}`, `${s.name} on ${nameOf(f)}`)} checked={picks[f.id]?.has(s.id)} onchange={() => toggle(f.id, s.id)} />
                   </td>
                 {/each}
               </tr>
             {/each}
           {/if}
         {/snippet}
-        {@render rows(albums, 'Alben')}
+        {@render rows(albums, t('Alben', 'Albums'))}
         {@render rows(tags, 'Tags')}
         {#if visible.length === 0}
-          <tr><td colspan={2 + app.frames.length} class="muted">Keine Alben oder Tags passen zur Suche.</td></tr>
+          <tr><td colspan={2 + app.frames.length} class="muted">{t('Keine Alben oder Tags passen zur Suche.', 'No albums or tags match the search.')}</td></tr>
         {/if}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="2"><b>Ergebnis je Frame</b><br /><span class="muted">Doppelte nur einmal gezählt</span></td>
+          <td colspan="2"><b>{t('Ergebnis je Frame', 'Result per frame')}</b><br /><span class="muted">{t('Doppelte nur einmal gezählt', 'Duplicates counted once')}</span></td>
           {#each app.frames as f (f.id)}
             {@const r = results[f.id]}
             <td class="c">
               {#if !picks[f.id]?.size}
-                <span class="muted">Nichts zugeordnet</span>
+                <span class="muted">{t('Nichts zugeordnet', 'Nothing assigned')}</span>
               {:else if r === null || r === undefined}
-                <span class="muted">zähle…</span>
+                <span class="muted">{t('zähle…', 'counting…')}</span>
               {:else if typeof r === 'string'}
-                <span class="warn" title={r}>Fehler</span>
+                <span class="warn" title={r}>{t('Fehler', 'Error')}</span>
               {:else}
                 <span class="big">{n(r.images)}</span>
-                {f.limit ? `von ${n(f.limit)}` : 'kein Limit'}
-                {#if f.limit && r.images > f.limit}<br /><span class="warn">{n(r.images - f.limit)} über dem Limit</span>{/if}
-                {#if r.videos}<br /><span class="muted">{n(r.videos)} Videos, vorerst übersprungen</span>{/if}
+                {f.limit ? t(`von ${n(f.limit)}`, `of ${n(f.limit)}`) : t('kein Limit', 'no limit')}
+                {#if f.limit && r.images > f.limit}<br /><span class="warn">{t(`${n(r.images - f.limit)} über dem Limit`, `${n(r.images - f.limit)} over the limit`)}</span>{/if}
+                {#if r.videos}<br /><span class="muted">{t(`${n(r.videos)} Videos, vorerst übersprungen`, `${n(r.videos)} videos, skipped for now`)}</span>{/if}
               {/if}
             </td>
           {/each}

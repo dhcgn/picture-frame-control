@@ -17,6 +17,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 )
 
 // Client talks to one Immich server with one API key.
@@ -32,10 +34,11 @@ type Client struct {
 func New(server, apiKey string) (*Client, error) {
 	u, err := url.Parse(strings.TrimSpace(server))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, errors.New("Die Server-Adresse muss mit http:// oder https:// beginnen")
+		return nil, errors.New(i18n.T("Die Server-Adresse muss mit http:// oder https:// beginnen",
+			"The server address must start with http:// or https://"))
 	}
 	if strings.TrimSpace(apiKey) == "" {
-		return nil, errors.New("Der API-Key fehlt")
+		return nil, errors.New(i18n.T("Der API-Key fehlt", "The API key is missing"))
 	}
 	base := strings.TrimSuffix(strings.TrimRight(u.String(), "/"), "/api")
 	return &Client{
@@ -56,13 +59,13 @@ type StatusError struct {
 func (e *StatusError) Error() string {
 	switch e.Code {
 	case http.StatusUnauthorized:
-		return "Immich lehnt den API-Key ab"
+		return i18n.T("Immich lehnt den API-Key ab", "Immich rejects the API key")
 	case http.StatusForbidden:
-		return fmt.Sprintf("Dem API-Key fehlt eine Berechtigung für %s: %s", e.Path, e.Message)
+		return fmt.Sprintf(i18n.T("Dem API-Key fehlt eine Berechtigung für %s: %s", "The API key lacks a permission for %s: %s"), e.Path, e.Message)
 	case http.StatusNotFound:
-		return fmt.Sprintf("Immich kennt %s nicht. Stimmt die Server-Adresse?", e.Path)
+		return fmt.Sprintf(i18n.T("Immich kennt %s nicht. Stimmt die Server-Adresse?", "Immich does not know %s. Is the server address right?"), e.Path)
 	}
-	return fmt.Sprintf("Immich antwortet auf %s mit %d: %s", e.Path, e.Code, e.Message)
+	return fmt.Sprintf(i18n.T("Immich antwortet auf %s mit %d: %s", "Immich answers %s with %d: %s"), e.Path, e.Code, e.Message)
 }
 
 // call sends one request and decodes the JSON answer into out. Rate limits,
@@ -99,7 +102,7 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 					return err
 				}
 				if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-					return fmt.Errorf("Antwort von Immich auf %s nicht lesbar: %w", path, err)
+					return fmt.Errorf(i18n.T("Antwort von Immich auf %s nicht lesbar: %w", "Immich's answer to %s is unreadable: %w"), path, err)
 				}
 				return nil
 			}
@@ -118,7 +121,7 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 			if _, ok := errors.AsType[*StatusError](err); ok {
 				return err
 			}
-			return fmt.Errorf("Immich nicht erreichbar: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("Immich nicht erreichbar", "Immich not reachable"), err)
 		}
 		select {
 		case <-time.After(c.retryWait << attempt):

@@ -5,6 +5,7 @@
   import FrameArt from '../lib/FrameArt.svelte'
   import PairDialog from '../lib/PairDialog.svelte'
   import { aboutOf, app, errText, isPortrait, loadFrames, nameOf, notify, probe, probeAll, screenOf, statusLine, type Frame } from '../lib/state.svelte'
+  import { photos, t } from '../lib/i18n.svelte'
 
   let { onopen }: { onopen: (id: string) => void } = $props()
 
@@ -22,16 +23,16 @@
 
   function subtitle() {
     const n = app.frames.length
-    if (n === 0) return 'Noch kein Frame gekoppelt.'
-    const frames = n === 1 ? 'Ein gekoppelter Frame' : `${n} gekoppelte Frames`
-    return `${frames}, davon ${online} erreichbar.`
+    if (n === 0) return t('Noch kein Frame gekoppelt.', 'No frame paired yet.')
+    if (n === 1) return t(`Ein gekoppelter Frame, davon ${online} erreichbar.`, `One paired frame, ${online} reachable.`)
+    return t(`${n} gekoppelte Frames, davon ${online} erreichbar.`, `${n} paired frames, ${online} reachable.`)
   }
 
   async function search() {
     searching = true
     try {
       found = (await FrameService.Discover()) ?? []
-      if (found.length === 0) notify('Im lokalen Netz hat sich kein Frame gemeldet.')
+      if (found.length === 0) notify(t('Im lokalen Netz hat sich kein Frame gemeldet.', 'No frame answered on the local network.'))
     } catch (e) {
       notify(errText(e), 'error')
     } finally {
@@ -43,7 +44,8 @@
     await loadFrames()
     probe(f.id)
     found = found?.filter((d) => d.pairedId !== f.id) ?? null
-    notify(`Mit „${nameOf(app.frames.find((x) => x.id === f.id) ?? f)}“ gekoppelt.`)
+    const name = nameOf(app.frames.find((x) => x.id === f.id) ?? f)
+    notify(t(`Mit „${name}“ gekoppelt.`, `Paired with “${name}”.`))
   }
 
   async function importUnframeo() {
@@ -51,7 +53,7 @@
       const n = await SettingsService.ImportUnframeo(unframeoPath)
       await loadFrames()
       probeAll()
-      notify(n === 1 ? 'Ein Frame aus unframeo übernommen.' : `${n} Frames aus unframeo übernommen.`)
+      notify(n === 1 ? t('Ein Frame aus unframeo übernommen.', 'Took over one frame from unframeo.') : t(`${n} Frames aus unframeo übernommen.`, `Took over ${n} frames from unframeo.`))
     } catch (e) {
       notify(errText(e), 'error')
     }
@@ -60,9 +62,9 @@
   function facts(f: Frame) {
     const s = screenOf(f)
     const parts = s.w ? [`${s.w} × ${s.h}`] : []
-    if (f.rotate) parts.push('hochkant')
+    if (f.rotate) parts.push(t('hochkant', 'portrait'))
     const c = app.status[f.id]?.count ?? -1
-    if (c >= 0) parts.push(c === 1 ? '1 Bild' : `${c} Bilder`)
+    if (c >= 0) parts.push(photos(c))
     return parts.join(' · ')
   }
 </script>
@@ -73,9 +75,9 @@
     <p>{subtitle()}</p>
   </div>
   <div class="actions">
-    <button class="btn" onclick={probeAll} disabled={app.frames.length === 0}>Status aktualisieren</button>
-    <button class="btn" onclick={search} disabled={searching}>{searching ? 'Suche…' : 'Im Netzwerk suchen'}</button>
-    <button class="btn primary" onclick={() => pairDlg.open()}>Frame koppeln</button>
+    <button class="btn" onclick={probeAll} disabled={app.frames.length === 0}>{t('Status aktualisieren', 'Refresh status')}</button>
+    <button class="btn" onclick={search} disabled={searching}>{searching ? t('Suche…', 'Searching…') : t('Im Netzwerk suchen', 'Search the network')}</button>
+    <button class="btn primary" onclick={() => pairDlg.open()}>{t('Frame koppeln', 'Pair a frame')}</button>
   </div>
 </div>
 
@@ -83,12 +85,12 @@
   {#each app.frames as f (f.id)}
     {@const st = app.status[f.id]}
     {@const line = statusLine(st)}
-    <button class="hang" class:portrait={isPortrait(f)} onclick={() => onopen(f.id)} aria-label={`${nameOf(f)} öffnen`}>
+    <button class="hang" class:portrait={isPortrait(f)} onclick={() => onopen(f.id)} aria-label={t(`${nameOf(f)} öffnen`, `Open ${nameOf(f)}`)}>
       <FrameArt frame={f} recent={st?.recent} dim={st !== undefined && !st.online} />
       <div class="label">
         <h3>{nameOf(f)}</h3>
         {#if aboutOf(f)}<div class="place">{aboutOf(f)}</div>{/if}
-        <div class="mono">{facts(f) || 'Auflösung noch unbekannt'}</div>
+        <div class="mono">{facts(f) || t('Auflösung noch unbekannt', 'Resolution not known yet')}</div>
         <div class="status"><span class="dot {line.dot}"></span>{line.text}</div>
       </div>
     </button>
@@ -96,21 +98,21 @@
 
   {#each unpaired as d (d.instance)}
     <div class="found">
-      <strong>Frame im Netzwerk gefunden</strong>
+      <strong>{t('Frame im Netzwerk gefunden', 'Frame found on the network')}</strong>
       <span class="mono">{d.host}</span>
-      <span>Zum Koppeln den Code vom Display des Frames eingeben.</span>
-      <div><button class="btn" onclick={() => pairDlg.open()}>Koppeln</button></div>
+      <span>{t('Zum Koppeln den Code vom Display des Frames eingeben.', 'To pair, enter the code shown on the frame.')}</span>
+      <div><button class="btn" onclick={() => pairDlg.open()}>{t('Koppeln', 'Pair')}</button></div>
     </div>
   {/each}
 
   {#if app.frames.length === 0}
     <div class="found">
-      <strong>Noch kein Frame gekoppelt</strong>
-      <span>Am Frame „Freund hinzufügen“ wählen und den angezeigten Code eingeben.</span>
-      <div><button class="btn primary" onclick={() => pairDlg.open()}>Frame koppeln</button></div>
+      <strong>{t('Noch kein Frame gekoppelt', 'No frame paired yet')}</strong>
+      <span>{t('Am Frame „Freund hinzufügen“ wählen und den angezeigten Code eingeben.', 'On the frame, choose “Add friend” and enter the code it shows.')}</span>
+      <div><button class="btn primary" onclick={() => pairDlg.open()}>{t('Frame koppeln', 'Pair a frame')}</button></div>
       {#if unframeoPath}
-        <span class="muted">Oder die mit unframeo gekoppelten Frames übernehmen, ohne neu zu koppeln:</span>
-        <div><button class="btn" onclick={importUnframeo}>Aus unframeo übernehmen</button></div>
+        <span class="muted">{t('Oder die mit unframeo gekoppelten Frames übernehmen, ohne neu zu koppeln:', 'Or take over the frames paired with unframeo, without pairing again:')}</span>
+        <div><button class="btn" onclick={importUnframeo}>{t('Aus unframeo übernehmen', 'Take over from unframeo')}</button></div>
       {/if}
     </div>
   {/if}

@@ -4,6 +4,7 @@
   import { SyncService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import FrameArt from '../lib/FrameArt.svelte'
   import { app, errText, isPortrait, nameOf, notify, planSync, probe, type FramePlan } from '../lib/state.svelte'
+  import { num, photos, t } from '../lib/i18n.svelte'
 
   let { onassign }: { onassign: () => void } = $props()
 
@@ -34,13 +35,14 @@
     foreign[p.frameId] === 'all' ? (p.foreign ?? []) : foreign[p.frameId] === 'pick' ? [...(picked[p.frameId] ?? [])] : []
   const totals = $derived(
     chosen.reduce(
-      (t, p) => ({ send: t.send + p.send, del: t.del + (p.canDelete ? p.delete + foreignToDelete(p).length : 0) }),
+      (sum, p) => ({ send: sum.send + p.send, del: sum.del + (p.canDelete ? p.delete + foreignToDelete(p).length : 0) }),
       { send: 0, del: 0 },
     ),
   )
 
   async function start() {
-    if (totals.del > 0 && !confirm(`${totals.del} Bilder werden endgültig von den Frames gelöscht. Sync starten?`)) return
+    if (totals.del > 0 && !confirm(t(`${photos(totals.del)} werden endgültig von den Frames gelöscht. Sync starten?`,
+      `${photos(totals.del)} will be deleted from the frames for good. Start the sync?`))) return
     sync.running = true
     sync.results = null
     sync.log = []
@@ -49,7 +51,9 @@
       sync.results = (await SyncService.Run(chosen.map((p) => ({ frameId: p.frameId, deleteForeign: foreignToDelete(p) })))) ?? []
       const sent = sync.results.reduce((n, r) => n + r.sent, 0)
       const failed = sync.results.reduce((n, r) => n + r.failed + (r.error ? 1 : 0), 0)
-      notify(failed ? `Sync beendet mit ${failed} Fehlern. ${sent} Bilder gesendet.` : `Sync fertig. ${sent} Bilder gesendet.`, failed ? 'error' : 'ok')
+      notify(failed
+        ? t(`Sync beendet mit ${failed} Fehlern. ${photos(sent)} gesendet.`, `Sync finished with ${failed} errors. ${photos(sent)} sent.`)
+        : t(`Sync fertig. ${photos(sent)} gesendet.`, `Sync done. ${photos(sent)} sent.`), failed ? 'error' : 'ok')
     } catch (e) {
       notify(errText(e), 'error')
     } finally {
@@ -60,28 +64,30 @@
     }
   }
 
-  const n = (x: number) => x.toLocaleString('de-DE')
-  const phaseText: Record<string, string> = {
-    prepare: 'Bereite vor…', delete: 'Lösche…', send: 'Sende', check: 'Prüfe…', done: 'Fertig',
-  }
+  const n = num
+  const phaseText = (phase: string) =>
+    ({
+      prepare: t('Bereite vor…', 'Preparing…'), delete: t('Lösche…', 'Deleting…'), send: t('Sende', 'Sending'),
+      check: t('Prüfe…', 'Checking…'), done: t('Fertig', 'Done'),
+    })[phase] ?? phase
 </script>
 
 <div class="head">
   <div>
     <h1>Sync</h1>
     <p>
-      {#if sync.running}Sync läuft. Der Stand wird nach jedem Bild gespeichert, Abbrechen ist jederzeit möglich.
-      {:else}Vorschau: Das passiert beim nächsten Sync. Noch wurde nichts geändert.{/if}
+      {#if sync.running}{t('Sync läuft. Der Stand wird nach jedem Bild gespeichert, Abbrechen ist jederzeit möglich.', 'Sync running. Progress is saved after every photo; you can cancel at any time.')}
+      {:else}{t('Vorschau: Das passiert beim nächsten Sync. Noch wurde nichts geändert.', 'Preview: this is what the next sync does. Nothing has been changed yet.')}{/if}
     </p>
   </div>
 </div>
 
 {#if app.immich.state === 'none'}
-  <div class="panel empty"><p><strong>Immich ist noch nicht verbunden.</strong></p><p class="muted">Server und API-Key in den Einstellungen eintragen.</p></div>
+  <div class="panel empty"><p><strong>{t('Immich ist noch nicht verbunden.', 'Immich is not connected yet.')}</strong></p><p class="muted">{t('Server und API-Key in den Einstellungen eintragen.', 'Enter server and API key in the settings.')}</p></div>
 {:else if app.frames.length === 0}
-  <div class="panel empty"><p><strong>Noch kein Frame gekoppelt.</strong></p></div>
+  <div class="panel empty"><p><strong>{t('Noch kein Frame gekoppelt.', 'No frame paired yet.')}</strong></p></div>
 {:else if !sync.plans}
-  <p class="muted">{sync.planning ? 'Frage Immich und die Frames ab…' : ''}</p>
+  <p class="muted">{sync.planning ? t('Frage Immich und die Frames ab…', 'Asking Immich and the frames…') : ''}</p>
 {:else}
   <div class="plans">
     {#each sync.plans as p (p.frameId)}
@@ -93,9 +99,9 @@
           <div class="art" class:portrait={isPortrait(f)}><FrameArt frame={f} mini /></div>
           <h3>{nameOf(f)}</h3>
           {#if sync.running}
-            <span class="mono muted">{prog ? phaseText[prog.phase] : include[p.frameId] && !p.error ? 'Wartet' : ''}</span>
+            <span class="mono muted">{prog ? phaseText(prog.phase) : include[p.frameId] && !p.error ? t('Wartet', 'Waiting') : ''}</span>
           {:else}
-            <label class="pick"><input type="checkbox" bind:checked={include[p.frameId]} disabled={!!p.error} /> Mitsyncen</label>
+            <label class="pick"><input type="checkbox" bind:checked={include[p.frameId]} disabled={!!p.error} /> {t('Mitsyncen', 'Include')}</label>
           {/if}
 
           {#if p.error}
@@ -103,7 +109,7 @@
           {:else if sync.running && prog}
             <div class="prog">
               <div class="track"><span style:width={prog.total ? `${(100 * prog.done) / prog.total}%` : prog.phase === 'done' ? '100%' : '0'}></span></div>
-              {#if prog.phase === 'send'}<div class="mono">{prog.done + 1} von {prog.total} · {prog.item}</div>{/if}
+              {#if prog.phase === 'send'}<div class="mono">{t(`${prog.done + 1} von ${prog.total}`, `${prog.done + 1} of ${prog.total}`)} · {prog.item}</div>{/if}
             </div>
           {:else}
             {@const del = p.canDelete ? p.delete + fd.length : 0}
@@ -114,29 +120,30 @@
               <span style:flex={(p.foreign?.length ?? 0) - fd.length} style:background="var(--foreign)"></span>
             </div>
             <div class="facts">
-              <span><i style:background="var(--keep)"></i>Bleibt <b>{n(p.keep)}</b></span>
-              <span><i style:background="var(--send)"></i>Senden <b>{n(p.send)}</b></span>
-              <span><i style:background="var(--del)"></i>Löschen <b>{n(del)}</b>{#if p.delete && p.canDelete}<span class="muted"> nicht mehr ausgewählt oder geändert</span>{/if}</span>
-              {#if p.foreign?.length}<span><i style:background="var(--foreign)"></i>Fremd <b>{n(p.foreign.length)}</b></span>{/if}
-              {#if p.skipped}<span><i style:background="var(--skip)"></i>Übersprungen <b>{n(p.skipped)}</b><span class="muted"> Videos</span></span>{/if}
-              {#if p.overLimit}<span class="warn">Über dem Limit <b>{n(p.overLimit)}</b><span class="muted"> ältere werden nicht gesendet</span></span>{/if}
+              <span><i style:background="var(--keep)"></i>{t('Bleibt', 'Stays')} <b>{n(p.keep)}</b></span>
+              <span><i style:background="var(--send)"></i>{t('Senden', 'To send')} <b>{n(p.send)}</b></span>
+              <span><i style:background="var(--del)"></i>{t('Löschen', 'To delete')} <b>{n(del)}</b>{#if p.delete && p.canDelete}<span class="muted"> {t('nicht mehr ausgewählt oder geändert', 'no longer selected, or changed')}</span>{/if}</span>
+              {#if p.foreign?.length}<span><i style:background="var(--foreign)"></i>{t('Fremd', 'Foreign')} <b>{n(p.foreign.length)}</b></span>{/if}
+              {#if p.skipped}<span><i style:background="var(--skip)"></i>{t('Übersprungen', 'Skipped')} <b>{n(p.skipped)}</b><span class="muted"> Videos</span></span>{/if}
+              {#if p.overLimit}<span class="warn">{t('Über dem Limit', 'Over the limit')} <b>{n(p.overLimit)}</b><span class="muted"> {t('ältere werden nicht gesendet', 'older ones are not sent')}</span></span>{/if}
             </div>
             {#if !f.sources.albums?.length && !f.sources.tags?.length}
-              <div class="note">Diesem Frame sind keine Alben oder Tags zugeordnet. <button class="link" onclick={onassign}>Zuordnen</button></div>
+              <div class="note">{t('Diesem Frame sind keine Alben oder Tags zugeordnet.', 'No albums or tags are assigned to this frame.')} <button class="link" onclick={onassign}>{t('Zuordnen', 'Assign')}</button></div>
             {:else if p.send === 0 && del === 0}
-              <div class="note ok">Alles aktuell. Auf diesem Frame gibt es nichts zu senden oder zu löschen.</div>
+              <div class="note ok">{t('Alles aktuell. Auf diesem Frame gibt es nichts zu senden oder zu löschen.', 'All up to date. There is nothing to send to or delete from this frame.')}</div>
             {/if}
             {#if p.delete && !p.canDelete}
-              <div class="note warn">{p.delete} Bilder müssten gelöscht werden, aber der App fehlt die Berechtigung „Verwalten“.</div>
+              <div class="note warn">{t(`${photos(p.delete)} müssten gelöscht werden, aber der App fehlt die Berechtigung „Verwalten“.`,
+                `${photos(p.delete)} should be deleted, but the app lacks the “manage” permission.`)}</div>
             {/if}
             {#if p.foreign?.length}
               <div class="decide">
-                <h4>{n(p.foreign.length)} Bilder auf dem Frame stammen nicht aus dieser App</h4>
-                <span class="muted">Zum Beispiel per Frameo-App vom Handy gesendet.</span>
+                <h4>{t(`${photos(p.foreign.length)} auf dem Frame stammen nicht aus dieser App`, `${photos(p.foreign.length)} on the frame did not come from this app`)}</h4>
+                <span class="muted">{t('Zum Beispiel per Frameo-App vom Handy gesendet.', 'For example sent from a phone with the Frameo app.')}</span>
                 {#if foreign[p.frameId] === 'pick'}
                   <div class="strip">
                     {#each p.foreign as m (m)}
-                      <button class="th" aria-pressed={picked[p.frameId]?.has(m)} aria-label="Bild zum Löschen wählen"
+                      <button class="th" aria-pressed={picked[p.frameId]?.has(m)} aria-label={t('Bild zum Löschen wählen', 'Choose photo for deletion')}
                         onclick={() => (picked[p.frameId].has(m) ? picked[p.frameId].delete(m) : picked[p.frameId].add(m))}>
                         <img src={`/thumb/${p.frameId}/${m}`} alt="" loading="lazy" />
                       </button>
@@ -144,16 +151,21 @@
                   </div>
                 {/if}
                 <div class="choices">
-                  <label><input type="radio" bind:group={foreign[p.frameId]} value="keep" /> Behalten</label>
-                  <label><input type="radio" bind:group={foreign[p.frameId]} value="all" disabled={!p.canDelete} /> Alle {n(p.foreign.length)} löschen</label>
-                  <label><input type="radio" bind:group={foreign[p.frameId]} value="pick" disabled={!p.canDelete} /> Einzeln auswählen{foreign[p.frameId] === 'pick' ? ` (${picked[p.frameId]?.size ?? 0})` : '…'}</label>
+                  <label><input type="radio" bind:group={foreign[p.frameId]} value="keep" /> {t('Behalten', 'Keep')}</label>
+                  <label><input type="radio" bind:group={foreign[p.frameId]} value="all" disabled={!p.canDelete} /> {t(`Alle ${n(p.foreign.length)} löschen`, `Delete all ${n(p.foreign.length)}`)}</label>
+                  <label><input type="radio" bind:group={foreign[p.frameId]} value="pick" disabled={!p.canDelete} /> {t('Einzeln auswählen', 'Pick one by one')}{foreign[p.frameId] === 'pick' ? ` (${picked[p.frameId]?.size ?? 0})` : '…'}</label>
                 </div>
               </div>
             {/if}
           {/if}
           {#each sync.results?.filter((r) => r.frameId === p.frameId) ?? [] as r (r.frameId)}
             <div class="note" class:warn={!!r.error || r.failed > 0}>
-              Letzter Sync: {r.sent} gesendet, {r.deleted} gelöscht{#if r.failed}, {r.failed} fehlgeschlagen{/if}{#if r.full}, Frame voll{/if}{#if r.cancelled}, abgebrochen{/if}{#if r.error}. {r.error}{/if}.
+              {[
+                t(`Letzter Sync: ${r.sent} gesendet, ${r.deleted} gelöscht`, `Last sync: ${r.sent} sent, ${r.deleted} deleted`),
+                r.failed ? t(`${r.failed} fehlgeschlagen`, `${r.failed} failed`) : '',
+                r.full ? t('Frame voll', 'frame full') : '',
+                r.cancelled ? t('abgebrochen', 'cancelled') : '',
+              ].filter(Boolean).join(', ')}.{#if r.error} {r.error}{/if}
             </div>
           {/each}
         </article>
@@ -162,7 +174,7 @@
   </div>
 
   {#if sync.log.length}
-    <div class="log panel" aria-label="Protokoll">
+    <div class="log panel" aria-label={t('Protokoll', 'Log')}>
       {#each sync.log as l, i (i)}
 {@const lf = frameOf(l.frame)}
         <div class={l.level}>{l.time} {lf ? nameOf(lf) : ''} · {l.text}</div>
@@ -172,12 +184,12 @@
 
   <div class="go">
     {#if sync.running}
-      <span class="sum"><b>Sync läuft</b></span>
-      <button class="btn danger" onclick={() => SyncService.Cancel()}>Sync abbrechen</button>
+      <span class="sum"><b>{t('Sync läuft', 'Sync running')}</b></span>
+      <button class="btn danger" onclick={() => SyncService.Cancel()}>{t('Sync abbrechen', 'Cancel sync')}</button>
     {:else}
-      <span class="sum"><b>{chosen.length === 1 ? '1 Frame' : `${chosen.length} Frames`}</b> · {n(totals.send)} senden · {n(totals.del)} löschen</span>
-      <button class="btn" onclick={planSync} disabled={sync.planning}>{sync.planning ? 'Berechne…' : 'Vorschau aktualisieren'}</button>
-      <button class="btn primary" onclick={start} disabled={sync.planning || chosen.length === 0 || totals.send + totals.del === 0}>Sync starten</button>
+      <span class="sum"><b>{chosen.length === 1 ? '1 Frame' : `${chosen.length} Frames`}</b> · {t(`${n(totals.send)} senden · ${n(totals.del)} löschen`, `${n(totals.send)} to send · ${n(totals.del)} to delete`)}</span>
+      <button class="btn" onclick={planSync} disabled={sync.planning}>{sync.planning ? t('Berechne…', 'Calculating…') : t('Vorschau aktualisieren', 'Refresh preview')}</button>
+      <button class="btn primary" onclick={start} disabled={sync.planning || chosen.length === 0 || totals.send + totals.del === 0}>{t('Sync starten', 'Start sync')}</button>
     {/if}
   </div>
 {/if}

@@ -100,7 +100,7 @@ Windows-Desktop-App (Go + Wails v3), die
 | N-05 | Manifest-Updates atomar nach jedem bestätigten Asset (Absturz verliert höchstens ein Asset) |
 | N-06 | Keine gefährlichen Protokollnachrichten: Schutz gegen die Kollisionen GetMedia/DeleteMedia und hide/delete, kein Senden von Msg 46 |
 | N-07 | Offline-Tests gegen einen Fake-Frame und einen Fake-Immich. Live-Tests per Build-Tag |
-| N-08 | UI-Sprache: Deutsch (Englisch später?) |
+| N-08 | UI-Sprache Deutsch und Englisch, umschaltbar. Standard: die Windows-Anzeigesprache |
 
 ## 5. Randbedingungen aus der Analyse
 
@@ -115,11 +115,10 @@ Windows-Desktop-App (Go + Wails v3), die
 
 | # | Frage | Klärung durch |
 |---|---|---|
-| O-2 | Liefert `list` dieselbe Media-ID, die der Client beim Senden vergibt? Davon hängt die Manifest-Zuordnung ab. Fallback: Abgleich über captureDate (vom Client gesetzt) | Live-Test |
+| O-2 | ~~Liefert `list` dieselbe Media-ID, die der Client beim Senden vergibt?~~ **Ja** (2026-11-20): Alle 131 gesendeten Bilder eines echten Frames stehen unter der gesendeten ID in der Liste. Das Bildraster zeigt sie als „Aus Immich“ | geklärt |
 | O-3 | Zeigt der Frame WebP an? Sonst JPEG als Ziel (M-02) | Live-Test |
 | O-4 | Welche Videoformate, Längen und Größen akzeptiert der Frame? Typ "video+thumb" braucht vermutlich ein separates Vorschaubild | Live-Test + Protokollanalyse |
 | O-5 | Papierkorb/Archiv (I-06): immer ausschließen oder abschaltbar? | Entscheidung Nutzer |
-| O-6 | UI-Sprache nur Deutsch oder zusätzlich Englisch (N-08)? | Entscheidung Nutzer |
 
 **Entschieden (2026-11-20):** Lizenz GPL-3 · Frame voll: neueste zuerst · Sync nur manuell · ein Immich-Server mit einem API-Key.
 

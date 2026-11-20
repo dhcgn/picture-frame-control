@@ -4,7 +4,8 @@
 // network when the frame is found there, otherwise through Frameo's relay.
 //
 // Adapted from unframeo's cmd/unframeo/main.go (connect, dialGrid,
-// connectLocal, cmdPair, cmdDiscover), with the CLI flags replaced by Options.
+// connectLocal, cmdPair, cmdDiscover), with the CLI flags replaced by Options
+// and the messages in German and English.
 package link
 
 import (
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/dhcgn/picture-frame-control/internal/frameo"
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 	"github.com/dhcgn/picture-frame-control/internal/mdns"
 	"github.com/dhcgn/picture-frame-control/internal/sdg"
 )
@@ -111,7 +113,7 @@ func Open(ctx context.Context, peer sdg.PeerID, o Options) (*frameo.Client, Via,
 			discardGrid()
 			return o.client(p), ViaLocal, nil
 		case o.Mode == Local:
-			return nil, "", fmt.Errorf("Frame im lokalen Netz nicht erreichbar: %w", err)
+			return nil, "", fmt.Errorf("%s: %w", i18n.T("Frame im lokalen Netz nicht erreichbar", "Frame not reachable on the local network"), err)
 		default:
 			o.logger().Debug("not reachable locally, falling back to the relay", "err", err)
 		}
@@ -126,16 +128,18 @@ func Open(ctx context.Context, peer sdg.PeerID, o Options) (*frameo.Client, Via,
 		g, err = o.dialGrid(ctx)
 	}
 	if err != nil {
-		return nil, "", fmt.Errorf("Frameo-Server nicht erreichbar: %w", err)
+		return nil, "", fmt.Errorf("%s: %w", i18n.T("Frameo-Server nicht erreichbar", "Frameo servers not reachable"), err)
 	}
 	p, err := g.Connect(ctx, peer, sdg.FrameoProtocol)
 	if err != nil {
 		_ = g.Close()
 		switch {
 		case errors.Is(err, sdg.ErrPeerTimeout):
-			return nil, "", errors.New("Frame antwortet nicht: ausgeschaltet oder nicht im Netz")
+			return nil, "", errors.New(i18n.T("Frame antwortet nicht: ausgeschaltet oder nicht im Netz",
+				"The frame does not answer: switched off or not online"))
 		case errors.Is(err, sdg.ErrRefused):
-			return nil, "", errors.New("Frame lehnt die Verbindung ab: Kopplung wurde am Frame entfernt")
+			return nil, "", errors.New(i18n.T("Frame lehnt die Verbindung ab: Kopplung wurde am Frame entfernt",
+				"The frame refuses the connection: the pairing was removed on the frame"))
 		}
 		return nil, "", err
 	}
@@ -165,14 +169,15 @@ func openLocal(ctx context.Context, peer sdg.PeerID, o *Options) (*sdg.Peer, err
 	}
 	addr, ok := found.Addr()
 	if !ok {
-		return nil, fmt.Errorf("%s meldet sich im Netz, nennt aber keine Adresse", found.Instance)
+		return nil, fmt.Errorf(i18n.T("%s meldet sich im Netz, nennt aber keine Adresse", "%s announces itself but gives no address"), found.Instance)
 	}
 	ep := sdg.Endpoint{Host: addr.String(), Port: found.Port}
 	dial, cancelDial := context.WithTimeout(ctx, localDialTimeout)
 	defer cancelDial()
 	p, err := sdg.DialLocal(dial, ep, peer, o.Identity, sdg.LocalProtocol, &sdg.Options{Logger: o.logger()})
 	if err != nil && ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
-		return nil, fmt.Errorf("%s gefunden unter %s, Verbindung aber nicht innerhalb von %v aufgebaut", found.Instance, ep, localDialTimeout)
+		return nil, fmt.Errorf(i18n.T("%s gefunden unter %s, Verbindung aber nicht innerhalb von %v aufgebaut",
+			"found %s at %s, but could not connect within %v"), found.Instance, ep, localDialTimeout)
 	}
 	return p, err
 }
@@ -181,15 +186,17 @@ func openLocal(ctx context.Context, peer sdg.PeerID, o *Options) (*sdg.Peer, err
 func Pair(ctx context.Context, code string, o Options) (sdg.PeerID, error) {
 	g, err := o.dialGrid(ctx)
 	if err != nil {
-		return sdg.PeerID{}, fmt.Errorf("Frameo-Server nicht erreichbar: %w", err)
+		return sdg.PeerID{}, fmt.Errorf("%s: %w", i18n.T("Frameo-Server nicht erreichbar", "Frameo servers not reachable"), err)
 	}
 	defer g.Close()
 	peer, err := g.Pair(ctx, code)
 	switch {
 	case errors.Is(err, sdg.ErrRefused):
-		return peer, errors.New("Code unbekannt: Ist er noch aktuell? Codes laufen ab")
+		return peer, errors.New(i18n.T("Code unbekannt: Ist er noch aktuell? Codes laufen ab",
+			"Unknown code: is it still current? Codes expire"))
 	case errors.Is(err, sdg.ErrPairingFailed):
-		return peer, errors.New("Code nicht angenommen: Ziffern prüfen und erneut versuchen")
+		return peer, errors.New(i18n.T("Code nicht angenommen: Ziffern prüfen und erneut versuchen",
+			"Code not accepted: check the digits and try again"))
 	}
 	return peer, err
 }

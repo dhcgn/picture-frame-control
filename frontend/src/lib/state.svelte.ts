@@ -4,6 +4,7 @@ import type {
   Connection, FramePlan, FrameResult, FrameStatus, ServerInfo, Source, SyncLog, SyncProgress, UpdateInfo,
 } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
 import type { Frame } from '../../bindings/github.com/dhcgn/picture-frame-control/internal/store/models'
+import { t } from './i18n.svelte'
 
 export type { Frame, FramePlan, FrameStatus, Source }
 
@@ -113,7 +114,10 @@ export function nameOf(f: Frame): string {
 /** What the frame reports about itself that the title does not already say. */
 export function aboutOf(f: Frame): string {
   const title = nameOf(f)
-  return [f.place && f.place !== title ? `Standort ${f.place}` : '', f.frameName && f.frameName !== title ? `Besitzer ${f.frameName}` : '']
+  return [
+    f.place && f.place !== title ? t(`Standort ${f.place}`, `Location ${f.place}`) : '',
+    f.frameName && f.frameName !== title ? t(`Besitzer ${f.frameName}`, `Owner ${f.frameName}`) : '',
+  ]
     .filter(Boolean)
     .join(' · ')
 }
@@ -166,7 +170,9 @@ export function isPortrait(f: Frame) {
 }
 
 export function statusLine(s: FrameStatus | undefined): { dot: string; text: string } {
-  if (!s) return { dot: 'busy', text: 'Verbinde…' }
-  if (!s.online) return { dot: '', text: 'Nicht erreichbar' }
-  return s.via === 'local' ? { dot: 'local', text: 'Lokal verbunden' } : { dot: 'relay', text: 'Über Relay verbunden' }
+  if (!s) return { dot: 'busy', text: t('Verbinde…', 'Connecting…') }
+  if (!s.online) return { dot: '', text: t('Nicht erreichbar', 'Not reachable') }
+  return s.via === 'local'
+    ? { dot: 'local', text: t('Lokal verbunden', 'Connected locally') }
+    : { dot: 'relay', text: t('Über Relay verbunden', 'Connected via relay') }
 }

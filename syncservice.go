@@ -17,6 +17,7 @@ import (
 
 	"github.com/dhcgn/picture-frame-control/internal/frameo"
 	"github.com/dhcgn/picture-frame-control/internal/frameo/pb"
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 	"github.com/dhcgn/picture-frame-control/internal/immich"
 	"github.com/dhcgn/picture-frame-control/internal/store"
 	"github.com/dhcgn/picture-frame-control/internal/syncplan"
@@ -62,7 +63,12 @@ func (s *SyncService) log(frame, level, format string, args ...any) {
 }
 
 func (s *SyncService) manifestPath(frameID string) string {
-	return filepath.Join(s.dataDir, "manifests", frameID+".json")
+	return manifestPath(s.dataDir, frameID)
+}
+
+// manifestPath is where the record of what this app sent to a frame lives.
+func manifestPath(dataDir, frameID string) string {
+	return filepath.Join(dataDir, "manifests", frameID+".json")
 }
 
 // FramePlan is what the next sync would do on one frame.
@@ -129,7 +135,8 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 			return err
 		}
 		if !frameo.Granted(info, frameo.PermissionView) {
-			return errors.New("Die App darf die Bilder auf diesem Frame nicht sehen. Berechtigung im Frame anfragen")
+			return errors.New(i18n.T("Die App darf die Bilder auf diesem Frame nicht sehen. Berechtigung im Frame anfragen",
+				"The app may not see the photos on this frame. Request the permission in the frame"))
 		}
 		p.canManage = frameo.Granted(info, frameo.PermissionManage)
 		items, err := fc.ListMedia(ctx)
@@ -142,7 +149,7 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	}
 
 	if p.manifest, err = syncplan.Load(s.manifestPath(id)); err != nil {
-		return nil, fmt.Errorf("Sync-Stand nicht lesbar: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("Sync-Stand nicht lesbar", "Sync record unreadable"), err)
 	}
 	p.plan = syncplan.Compute(wanted, p.manifest.Entries, onFrame)
 	return p, nil
@@ -185,7 +192,7 @@ func (s *SyncService) albumCaptions(ctx context.Context, c *immich.Client, asset
 	}
 	wg.Wait()
 	if firstErr != nil {
-		return fmt.Errorf("Albumnamen für die Bildunterschrift nicht geladen: %w", firstErr)
+		return fmt.Errorf("%s: %w", i18n.T("Albumnamen für die Bildunterschrift nicht geladen", "Could not load album names for the captions"), firstErr)
 	}
 	return nil
 }
@@ -265,7 +272,7 @@ func (s *SyncService) Run(ctx context.Context, frames []RunFrame) ([]FrameResult
 	s.mu.Lock()
 	if s.cancel != nil {
 		s.mu.Unlock()
-		return nil, errors.New("Ein Sync läuft bereits")
+		return nil, errors.New(i18n.T("Ein Sync läuft bereits", "A sync is already running"))
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -310,7 +317,8 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		return res
 	}
 	m := p.manifest
-	s.log(id, "info", "%s: %d bleiben, %d senden, %d löschen", p.frame.DisplayName(), len(p.plan.Keep), len(p.plan.Send), len(p.plan.Delete))
+	s.log(id, "info", i18n.T("%s: %d bleiben, %d senden, %d löschen", "%s: %d stay, %d to send, %d to delete"),
+		p.frame.DisplayName(), len(p.plan.Keep), len(p.plan.Send), len(p.plan.Delete))
 
 	// Delete first: it makes room for what follows.
 	var del []int64
@@ -329,20 +337,21 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 	}
 	switch {
 	case len(del) > 0 && !p.canManage:
-		s.log(id, "warn", "%d Bilder nicht gelöscht: Der App fehlt die Berechtigung „Verwalten“", len(del))
+		s.log(id, "warn", i18n.T("%d Bilder nicht gelöscht: Der App fehlt die Berechtigung „Verwalten“",
+			"%d photos not deleted: the app lacks the \"manage\" permission"), len(del))
 	case len(del) > 0:
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "delete", Total: len(del)})
 		if _, err := s.frames.do(ctx, id, false, func(c *frameo.Client) error { return c.DeleteMedia(ctx, del) }); err != nil {
-			res.Error = "Löschen fehlgeschlagen: " + err.Error()
+			res.Error = i18n.T("Löschen fehlgeschlagen: ", "Deleting failed: ") + err.Error()
 			return res
 		}
 		m.Remove(del...)
 		res.Deleted = len(del)
-		s.log(id, "info", "%d Bilder gelöscht", len(del))
+		s.log(id, "info", i18n.T("%d Bilder gelöscht", "%d photos deleted"), len(del))
 	}
 	m.RemoveEntries(p.plan.Stale)
 	if err := m.Save(); err != nil {
-		res.Error = "Sync-Stand nicht speicherbar: " + err.Error()
+		res.Error = i18n.T("Sync-Stand nicht speicherbar: ", "Could not save the sync record: ") + err.Error()
 		return res
 	}
 
@@ -355,14 +364,14 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 	for i, a := range p.plan.Send {
 		if ctx.Err() != nil {
 			res.Cancelled = true
-			s.log(id, "warn", "Abgebrochen. %d von %d gesendet", i, len(p.plan.Send))
+			s.log(id, "warn", i18n.T("Abgebrochen. %d von %d gesendet", "Cancelled. %d of %d sent"), i, len(p.plan.Send))
 			break
 		}
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "send", Done: i, Total: len(p.plan.Send), Item: a.Name})
 		path, variant, size, err := s.mediaFile(ctx, c, a)
 		if err != nil {
 			res.Failed++
-			s.log(id, "error", "%s: Vorschau aus Immich nicht geladen: %v", a.Name, err)
+			s.log(id, "error", i18n.T("%s: Vorschau aus Immich nicht geladen: %v", "%s: could not load the preview from Immich: %v"), a.Name, err)
 			continue
 		}
 		var mediaID int64
@@ -372,18 +381,18 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		})
 		if fe, ok := errors.AsType[*frameo.FrameError](err); ok && fe.Code == errFrameFull {
 			res.Full = true
-			s.log(id, "warn", "Der Frame ist voll. %d ältere Bilder nicht gesendet", len(p.plan.Send)-i)
+			s.log(id, "warn", i18n.T("Der Frame ist voll. %d ältere Bilder nicht gesendet", "The frame is full. %d older photos not sent"), len(p.plan.Send)-i)
 			break
 		}
 		if err != nil {
 			res.Failed++
-			s.log(id, "error", "%s: Senden fehlgeschlagen: %v", a.Name, err)
+			s.log(id, "error", i18n.T("%s: Senden fehlgeschlagen: %v", "%s: sending failed: %v"), a.Name, err)
 			continue
 		}
 		e := syncplan.Entry{AssetID: a.ID, Checksum: a.Checksum, Variant: variant, Caption: a.Caption, MediaID: mediaID, Taken: a.Taken.UnixMilli(), Bytes: size, SentAt: time.Now().UTC()}
 		m.Entries = append(m.Entries, e)
 		if err := m.Save(); err != nil {
-			res.Error = "Sync-Stand nicht speicherbar: " + err.Error()
+			res.Error = i18n.T("Sync-Stand nicht speicherbar: ", "Could not save the sync record: ") + err.Error()
 			return res
 		}
 		sent = append(sent, e)
@@ -393,7 +402,8 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "check"})
 		s.reconcile(ctx, id, m, sent)
 	}
-	s.log(id, "info", "%s fertig: %d gesendet, %d gelöscht, %d fehlgeschlagen", p.frame.DisplayName(), res.Sent, res.Deleted, res.Failed)
+	s.log(id, "info", i18n.T("%s fertig: %d gesendet, %d gelöscht, %d fehlgeschlagen", "%s done: %d sent, %d deleted, %d failed"),
+		p.frame.DisplayName(), res.Sent, res.Deleted, res.Failed)
 	return res
 }
 
@@ -407,7 +417,7 @@ func (s *SyncService) reconcile(ctx context.Context, id string, m *syncplan.Mani
 		items, err = c.ListMedia(ctx)
 		return err
 	}); err != nil {
-		s.log(id, "warn", "ID-Abgleich nicht möglich: %v", err)
+		s.log(id, "warn", i18n.T("ID-Abgleich nicht möglich: %v", "Could not check the ids: %v"), err)
 		return
 	}
 	listed := map[int64]bool{}
@@ -438,13 +448,14 @@ func (s *SyncService) reconcile(ctx context.Context, id string, m *syncplan.Mani
 		missing++
 	}
 	if err := m.Save(); err != nil {
-		s.log(id, "error", "Sync-Stand nicht speicherbar: %v", err)
+		s.log(id, "error", i18n.T("Sync-Stand nicht speicherbar: %v", "Could not save the sync record: %v"), err)
 	}
 	level := "info"
 	if matched+missing > 0 {
 		level = "warn"
 	}
-	s.log(id, level, "ID-Abgleich: %d unter der gesendeten ID gefunden, %d über das Aufnahmedatum, %d nicht gefunden", direct, matched, missing)
+	s.log(id, level, i18n.T("ID-Abgleich: %d unter der gesendeten ID gefunden, %d über das Aufnahmedatum, %d nicht gefunden",
+		"ID check: %d found under the id sent, %d by capture date, %d not found"), direct, matched, missing)
 }
 
 // mediaFile returns a file ready to send for the asset: Immich's preview,

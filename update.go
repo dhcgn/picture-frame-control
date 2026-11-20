@@ -12,6 +12,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/updater"
 	githubprovider "github.com/wailsapp/wails/v3/pkg/updater/providers/github"
+
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 )
 
 // appRepo is where releases are published; the updater looks there.
@@ -94,7 +96,8 @@ func (s *UpdateService) Check(ctx context.Context) UpdateInfo {
 // when the user clicks; nothing is ever downloaded on its own.
 func (s *UpdateService) Install(ctx context.Context) error {
 	if !s.enabled {
-		return errors.New("Diese Version aktualisiert sich nicht selbst (Entwicklungsversion)")
+		return errors.New(i18n.T("Diese Version aktualisiert sich nicht selbst (Entwicklungsversion)",
+			"This version does not update itself (development build)"))
 	}
 	return s.app.Updater.CheckAndInstall(ctx)
 }

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { SettingsService } from '../bindings/github.com/dhcgn/picture-frame-control'
   import { app, checkUpdate, installUpdate, listenSync, loadFrames, loadImmich, probeAll } from './lib/state.svelte'
+  import { lang, t } from './lib/i18n.svelte'
   import Frames from './views/Frames.svelte'
   import FrameDetail from './views/FrameDetail.svelte'
   import Assignment from './views/Assignment.svelte'
@@ -12,6 +14,7 @@
   let current = $state('')
 
   onMount(async () => {
+    SettingsService.Get().then((s) => (lang.current = s.language as 'de' | 'en'))
     listenSync()
     checkUpdate()
     loadImmich()
@@ -21,7 +24,7 @@
 
   function go(v: View) {
     if (app.dirty && view === 'assignment' && v !== 'assignment') {
-      if (!confirm('Die Zuordnung hat ungespeicherte Änderungen. Verwerfen?')) return
+      if (!confirm(t('Die Zuordnung hat ungespeicherte Änderungen. Verwerfen?', 'The assignment has unsaved changes. Discard them?'))) return
       app.dirty = false
     }
     view = v
@@ -34,27 +37,27 @@
 
   const immichLine = $derived.by(() => {
     const im = app.immich
-    if (im.state === 'none') return { dot: '', text: 'Immich nicht verbunden' }
+    if (im.state === 'none') return { dot: '', text: t('Immich nicht verbunden', 'Immich not connected') }
     if (im.state === 'checking') return { dot: 'busy', text: 'Immich…' }
-    if (im.state === 'error') return { dot: 'error', text: 'Immich-Fehler' }
+    if (im.state === 'error') return { dot: 'error', text: t('Immich-Fehler', 'Immich error') }
     return { dot: 'local', text: `Immich ${im.info?.version}` }
   })
 </script>
 
 <div class="shell">
-  <nav class="side" aria-label="Hauptnavigation">
+  <nav class="side" aria-label={t('Hauptnavigation', 'Main navigation')}>
     <div class="brand">Picture-Frame-Control<small>Immich → Frameo{#if app.update} · {app.update.current}{/if}</small></div>
     <button class="nav" aria-current={view === 'frames' || view === 'detail' ? 'page' : undefined} onclick={() => go('frames')}>
       Frames <span class="count">{app.frames.length}</span>
     </button>
-    <button class="nav" aria-current={view === 'assignment' ? 'page' : undefined} onclick={() => go('assignment')}>Zuordnung</button>
+    <button class="nav" aria-current={view === 'assignment' ? 'page' : undefined} onclick={() => go('assignment')}>{t('Zuordnung', 'Assignment')}</button>
     <button class="nav" aria-current={view === 'sync' ? 'page' : undefined} onclick={() => go('sync')}>
-      Sync {#if app.sync.running}<span class="count"><span class="dot busy"></span>läuft</span>{/if}
+      Sync {#if app.sync.running}<span class="count"><span class="dot busy"></span>{t('läuft', 'running')}</span>{/if}
     </button>
-    <button class="nav" aria-current={view === 'settings' ? 'page' : undefined} onclick={() => go('settings')}>Einstellungen</button>
+    <button class="nav" aria-current={view === 'settings' ? 'page' : undefined} onclick={() => go('settings')}>{t('Einstellungen', 'Settings')}</button>
     {#if app.update?.available}
-      <button class="update" onclick={installUpdate} title="Lädt die neue Version, prüft sie und startet neu">
-        Update auf {app.update.latest}
+      <button class="update" onclick={installUpdate} title={t('Lädt die neue Version, prüft sie und startet neu', 'Downloads the new version, verifies it and restarts')}>
+        {t('Update auf', 'Update to')} {app.update.latest}
       </button>
     {/if}
     <button class="foot" onclick={() => go('settings')} title={app.immich.error || app.immich.conn.server}>
@@ -83,7 +86,7 @@
 {#if app.notice}
   <div class="notice {app.notice.kind}" role={app.notice.kind === 'error' ? 'alert' : 'status'}>
     <span>{app.notice.text}</span>
-    <button aria-label="Hinweis schließen" onclick={() => (app.notice = null)}>×</button>
+    <button aria-label={t('Hinweis schließen', 'Close notice')} onclick={() => (app.notice = null)}>×</button>
   </div>
 {/if}
 

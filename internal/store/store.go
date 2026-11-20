@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/dhcgn/picture-frame-control/internal/config"
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 	"github.com/dhcgn/picture-frame-control/internal/sdg"
 )
 
@@ -55,6 +56,7 @@ type Frame struct {
 
 // Config is the plain-text part of the store.
 type Config struct {
+	Language     string  `json:"language"` // "de", "en", or "" to follow Windows
 	ClientName   string  `json:"clientName"`
 	ImmichServer string  `json:"immichServer"` // origin, e.g. https://photos.example.lan
 	Frames       []Frame `json:"frames"`
@@ -88,7 +90,7 @@ func Open(dir string) (*Store, error) {
 	s := &Store{dir: dir}
 	if b, err := os.ReadFile(s.path("config.json")); err == nil {
 		if err := json.Unmarshal(b, &s.cfg); err != nil {
-			return nil, fmt.Errorf("Einstellungen in %s nicht lesbar: %w", s.path("config.json"), err)
+			return nil, fmt.Errorf(i18n.T("Einstellungen in %s nicht lesbar: %w", "Settings in %s are unreadable: %w"), s.path("config.json"), err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
@@ -96,10 +98,11 @@ func Open(dir string) (*Store, error) {
 	if b, err := os.ReadFile(s.path("secrets.dat")); err == nil {
 		plain, err := unprotect(b)
 		if err != nil {
-			return nil, fmt.Errorf("Schlüsseldatei nicht entschlüsselbar (anderer Windows-Benutzer?): %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("Schlüsseldatei nicht entschlüsselbar (anderer Windows-Benutzer?)",
+				"Cannot decrypt the key file (another Windows user?)"), err)
 		}
 		if err := json.Unmarshal(plain, &s.sec); err != nil {
-			return nil, fmt.Errorf("Schlüsseldatei beschädigt: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("Schlüsseldatei beschädigt", "The key file is damaged"), err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
@@ -129,7 +132,7 @@ func (s *Store) Frame(id string) (Frame, error) {
 	defer s.mu.Unlock()
 	i := s.index(id)
 	if i < 0 {
-		return Frame{}, fmt.Errorf("kein Frame mit der ID %s", id)
+		return Frame{}, fmt.Errorf(i18n.T("kein Frame mit der ID %s", "no frame with the id %s"), id)
 	}
 	return s.cfg.Frames[i], nil
 }
@@ -164,7 +167,7 @@ func (s *Store) UpdateFrame(id string, fn func(*Frame)) error {
 	return s.Update(func(c *Config) error {
 		i := slices.IndexFunc(c.Frames, func(f Frame) bool { return f.ID == id })
 		if i < 0 {
-			return fmt.Errorf("kein Frame mit der ID %s", id)
+			return fmt.Errorf(i18n.T("kein Frame mit der ID %s", "no frame with the id %s"), id)
 		}
 		fn(&c.Frames[i])
 		return nil
@@ -198,7 +201,7 @@ func (s *Store) Identity() (*sdg.Identity, error) {
 	}
 	k, err := sdg.ParseKey(s.sec.PrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("gespeicherter Schlüssel unbrauchbar: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("gespeicherter Schlüssel unbrauchbar", "the stored key is unusable"), err)
 	}
 	return sdg.IdentityFromPrivate(k), nil
 }
@@ -230,7 +233,7 @@ func (s *Store) saveSecrets(sec secrets) error {
 	}
 	enc, err := protect(b)
 	if err != nil {
-		return fmt.Errorf("Verschlüsseln fehlgeschlagen: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("Verschlüsseln fehlgeschlagen", "encryption failed"), err)
 	}
 	return s.write("secrets.dat", enc)
 }
@@ -301,7 +304,8 @@ func (s *Store) ImportUnframeo(path string) (int, error) {
 	clash := s.sec.PrivateKey != "" && s.sec.PrivateKey != uc.PrivateKey && len(s.cfg.Frames) > 0
 	s.mu.Unlock()
 	if clash {
-		return 0, errors.New("diese App hat bereits Frames mit einem anderen Schlüssel gekoppelt; ein Import würde sie unbrauchbar machen")
+		return 0, errors.New(i18n.T("Diese App hat bereits Frames mit einem anderen Schlüssel gekoppelt. Ein Import würde sie unbrauchbar machen",
+			"This app has already paired frames with a different key. Importing would make them unusable"))
 	}
 
 	s.mu.Lock()

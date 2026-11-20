@@ -20,9 +20,11 @@ import (
 
 	"github.com/dhcgn/picture-frame-control/internal/frameo"
 	"github.com/dhcgn/picture-frame-control/internal/frameo/pb"
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 	"github.com/dhcgn/picture-frame-control/internal/link"
 	"github.com/dhcgn/picture-frame-control/internal/sdg"
 	"github.com/dhcgn/picture-frame-control/internal/store"
+	"github.com/dhcgn/picture-frame-control/internal/syncplan"
 )
 
 // FrameService manages paired frames and what is on them (F-01..F-13).
@@ -33,6 +35,7 @@ import (
 type FrameService struct {
 	store    *store.Store
 	cacheDir string
+	dataDir  string // where the sync manifests live, to tell synced photos from foreign ones
 
 	mu    sync.Mutex
 	conns map[string]*frameConn
@@ -165,13 +168,14 @@ func explain(err error) error {
 	}
 	switch fe.Code {
 	case pb.Error_MISSING_PERMISSION:
-		return errors.New("Dafür fehlt die Berechtigung. In den Frame-Einstellungen anfragen und am Frame erlauben")
+		return errors.New(i18n.T("Dafür fehlt die Berechtigung. In den Frame-Einstellungen anfragen und am Frame erlauben",
+			"Permission missing. Request it in the frame settings and allow it on the frame"))
 	case pb.Error_MISSING_MEDIA_ITEM:
-		return errors.New("Das Bild ist nicht mehr auf dem Frame")
+		return errors.New(i18n.T("Das Bild ist nicht mehr auf dem Frame", "The photo is no longer on the frame"))
 	case pb.Error_DECLINED:
-		return errors.New("Am Frame abgelehnt")
+		return errors.New(i18n.T("Am Frame abgelehnt", "Declined on the frame"))
 	case pb.Error_UNAUTHORIZED:
-		return errors.New("Der Frame kennt diese App nicht mehr. Bitte neu koppeln")
+		return errors.New(i18n.T("Der Frame kennt diese App nicht mehr. Bitte neu koppeln", "The frame no longer knows this app. Please pair again"))
 	}
 	return err
 }
@@ -314,13 +318,13 @@ func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame,
 	name := strings.TrimSpace(fs.Name)
 	switch {
 	case fs.Caption != "" && fs.Caption != "album":
-		return store.Frame{}, fmt.Errorf("unbekannte Bildunterschrift %q", fs.Caption)
+		return store.Frame{}, fmt.Errorf(i18n.T("unbekannte Bildunterschrift %q", "unknown caption %q"), fs.Caption)
 	case fs.Limit < 0:
-		return store.Frame{}, errors.New("Das Limit darf nicht negativ sein")
+		return store.Frame{}, errors.New(i18n.T("Das Limit darf nicht negativ sein", "The limit must not be negative"))
 	case fs.Scale != "crop" && fs.Scale != "fit":
-		return store.Frame{}, fmt.Errorf("unbekannte Darstellung %q", fs.Scale)
+		return store.Frame{}, fmt.Errorf(i18n.T("unbekannte Darstellung %q", "unknown display mode %q"), fs.Scale)
 	case fs.Mode != "auto" && fs.Mode != "local" && fs.Mode != "relay":
-		return store.Frame{}, fmt.Errorf("unbekannter Verbindungsweg %q", fs.Mode)
+		return store.Frame{}, fmt.Errorf(i18n.T("unbekannter Verbindungsweg %q", "unknown connection mode %q"), fs.Mode)
 	}
 	old, err := s.store.Frame(id)
 	if err != nil {
@@ -357,7 +361,7 @@ func (s *FrameService) RequestPermission(ctx context.Context, id string, manage 
 	defer cancel()
 	_, err := s.do(wctx, id, false, func(c *frameo.Client) error { return c.RequestPermission(wctx, p) })
 	if errors.Is(err, context.DeadlineExceeded) {
-		return errors.New("Am Frame wurde in drei Minuten nicht geantwortet")
+		return errors.New(i18n.T("Am Frame wurde in drei Minuten nicht geantwortet", "Nobody answered on the frame within three minutes"))
 	}
 	return err
 }
@@ -370,9 +374,12 @@ type MediaItem struct {
 	Visible  bool   `json:"visible"`
 	Captured int64  `json:"captured"` // unix ms
 	Received int64  `json:"received"` // unix ms
+	Synced   bool   `json:"synced"`   // sent by this app's sync; false means foreign
+	Caption  string `json:"caption"`  // the caption the sync sent with it
 }
 
-// Media lists what is on the frame, newest first.
+// Media lists what is on the frame, newest first, and marks the photos the
+// sync put there: the manifest records the frame's id for each of them.
 func (s *FrameService) Media(ctx context.Context, id string) ([]MediaItem, error) {
 	var items []*pb.MediaMetaData
 	_, err := s.do(ctx, id, true, func(c *frameo.Client) (err error) {
@@ -383,8 +390,15 @@ func (s *FrameService) Media(ctx context.Context, id string) ([]MediaItem, error
 		return nil, err
 	}
 	sortNewestFirst(items)
+	synced := map[int64]syncplan.Entry{}
+	if m, err := syncplan.Load(manifestPath(s.dataDir, id)); err == nil {
+		for _, e := range m.Entries {
+			synced[e.MediaID] = e
+		}
+	}
 	out := make([]MediaItem, len(items))
 	for i, m := range items {
+		e, ok := synced[m.GetMediaId()]
 		t := "picture"
 		switch m.GetType() {
 		case pb.MediaMetaData_Type_MEDIAMETADATA_TYPE_VIDEO:
@@ -398,6 +412,8 @@ func (s *FrameService) Media(ctx context.Context, id string) ([]MediaItem, error
 			Visible:  m.GetIsVisible(),
 			Captured: m.GetCaptureDate(),
 			Received: m.GetReceiveDate(),
+			Synced:   ok,
+			Caption:  e.Caption,
 		}
 	}
 	return out, nil
@@ -408,7 +424,7 @@ func parseIDs(ids []string) ([]int64, error) {
 	for i, s := range ids {
 		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("ungültige Bild-ID %q", s)
+			return nil, fmt.Errorf(i18n.T("ungültige Bild-ID %q", "invalid photo id %q"), s)
 		}
 		out[i] = n
 	}
@@ -450,7 +466,7 @@ func (s *FrameService) Download(ctx context.Context, id string, mediaIDs []strin
 		return "", err
 	}
 	dir, err := application.Get().Dialog.OpenFile().
-		SetTitle("Ordner für die Bilder wählen").
+		SetTitle(i18n.T("Ordner für die Bilder wählen", "Choose a folder for the photos")).
 		CanChooseDirectories(true).CanChooseFiles(false).CanCreateDirectories(true).
 		PromptForSingleSelection()
 	if err != nil || dir == "" {
@@ -463,7 +479,7 @@ func (s *FrameService) Download(ctx context.Context, id string, mediaIDs []strin
 			d, err = c.GetMedia(ctx, frameo.Fetch{ID: mid})
 			return err
 		}); err != nil {
-			errs = append(errs, fmt.Errorf("Bild %d: %w", mid, err))
+			errs = append(errs, fmt.Errorf(i18n.T("Bild %d: %w", "Photo %d: %w"), mid, err))
 			continue
 		}
 		name := fmt.Sprintf("%d.%s", mid, d.Extension())
@@ -489,8 +505,8 @@ type SendProgress struct {
 // many arrived; files that failed are reported together in the error.
 func (s *FrameService) SendFiles(ctx context.Context, id string, fit bool, caption string) (int, error) {
 	paths, err := application.Get().Dialog.OpenFile().
-		SetTitle("Bilder zum Senden wählen").
-		AddFilter("Bilder", "*.jpg;*.jpeg;*.png;*.webp;*.gif;*.bmp;*.heic").
+		SetTitle(i18n.T("Bilder zum Senden wählen", "Choose photos to send")).
+		AddFilter(i18n.T("Bilder", "Photos"), "*.jpg;*.jpeg;*.png;*.webp;*.gif;*.bmp;*.heic").
 		PromptForMultipleSelection()
 	if err != nil || len(paths) == 0 {
 		return 0, err

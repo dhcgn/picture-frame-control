@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 	"github.com/dhcgn/picture-frame-control/internal/immich"
 	"github.com/dhcgn/picture-frame-control/internal/store"
 )
@@ -24,7 +25,8 @@ type ImmichService struct {
 func (s *ImmichService) client() (*immich.Client, error) {
 	server := s.store.Config().ImmichServer
 	if server == "" {
-		return nil, errors.New("Immich ist noch nicht verbunden. Server und API-Key in den Einstellungen eintragen")
+		return nil, errors.New(i18n.T("Immich ist noch nicht verbunden. Server und API-Key in den Einstellungen eintragen",
+			"Immich is not connected yet. Enter server and API key in the settings"))
 	}
 	return immich.New(server, s.store.ImmichAPIKey())
 }
@@ -51,7 +53,7 @@ func check(ctx context.Context, c *immich.Client) (ServerInfo, error) {
 		return ServerInfo{}, err
 	}
 	if !v.AtLeast(3, 2) {
-		return ServerInfo{}, fmt.Errorf("Immich %s ist zu alt. Die App braucht mindestens 3.2", v)
+		return ServerInfo{}, fmt.Errorf(i18n.T("Immich %s ist zu alt. Die App braucht mindestens 3.2", "Immich %s is too old. The app needs at least 3.2"), v)
 	}
 	u, err := c.Me(ctx)
 	if err != nil {

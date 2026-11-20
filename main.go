@@ -11,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/updater"
 
+	"github.com/dhcgn/picture-frame-control/internal/i18n"
 	"github.com/dhcgn/picture-frame-control/internal/store"
 )
 
@@ -36,12 +37,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	i18n.SetLanguage(i18n.Resolve(st.Config().Language))
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		log.Fatal(err)
 	}
 	cacheDir := filepath.Join(cache, "picture-frame-control")
 	frames := NewFrameService(st, cacheDir)
+	frames.dataDir = dir
 	im := &ImmichService{store: st}
 	syncer := &SyncService{
 		store: st, frames: frames, immich: im, dataDir: dir, cacheDir: cacheDir,
@@ -51,7 +54,7 @@ func main() {
 
 	app := application.New(application.Options{
 		Name:        "Picture-Frame-Control",
-		Description: "Immich-Alben und -Tags auf Frameo-Bilderrahmen spiegeln",
+		Description: "Mirrors Immich albums and tags onto Frameo photo frames",
 		Services: []application.Service{
 			application.NewService(frames),
 			application.NewService(&SettingsService{store: st, frames: frames}),

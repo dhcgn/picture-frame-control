@@ -18,6 +18,7 @@ import (
 	"github.com/dhcgn/picture-frame-control/internal/sdg"
 	"github.com/dhcgn/picture-frame-control/internal/sdg/sdgtest"
 	"github.com/dhcgn/picture-frame-control/internal/store"
+	"github.com/dhcgn/picture-frame-control/internal/syncplan"
 )
 
 // withFakeFrame pairs a store with frame, served through a fake grid, and
@@ -84,9 +85,19 @@ func TestFrameServiceAgainstFakeFrame(t *testing.T) {
 		t.Errorf("screen not learned: %+v", got.Screen)
 	}
 
+	// The sync recorded photo 22 as its own; the others are foreign.
+	s.dataDir = t.TempDir()
+	m, _ := syncplan.Load(manifestPath(s.dataDir, f.ID))
+	m.Entries = []syncplan.Entry{{AssetID: "a", MediaID: 22, Caption: "Ostsee 2024"}}
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
+	}
 	items, err := s.Media(ctx, f.ID)
 	if err != nil || len(items) != 3 || items[0].ID != "22" || items[1].Visible {
 		t.Fatalf("Media = %+v, %v", items, err)
+	}
+	if !items[0].Synced || items[0].Caption != "Ostsee 2024" || items[1].Synced || items[2].Synced {
+		t.Errorf("synced marks = %v %v %v, want only 22", items[0].Synced, items[1].Synced, items[2].Synced)
 	}
 
 	thumbs := s.thumbMiddleware(http.NotFoundHandler())
