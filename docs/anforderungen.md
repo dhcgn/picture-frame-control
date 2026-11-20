@@ -67,7 +67,7 @@ Windows-Desktop-App (Go + Wails v3), die
 | S-09 | Fehler 12 "frame limit reached" erkennen. Sync für diesen Frame stoppen und melden |
 | S-10 | Optionales Limit je Frame (Anzahl und/oder MB). Bei Überschreitung oder Fehler 12: neueste zuerst (Aufnahmedatum absteigend). Der Rest erscheint in der Vorschau als "nicht gesendet" |
 | S-11 | Sync nur manuell auslösen, je Frame oder für alle. Kein automatischer Sync |
-| S-12 | Optional je Frame: Albumname als Bildunterschrift. Bei mehreren gewählten Alben das kleinste. Bilder, die nur über einen Tag kommen, bleiben ohne Unterschrift. Eine geänderte Unterschrift sendet das Bild neu |
+| S-12 | Optional je Frame: Albumname als Bildunterschrift. Gemeint ist ein Immich-Album, in dem das Bild liegt, auch wenn es über einen Tag ausgewählt ist. Bei mehreren gewinnt ein dem Frame zugeordnetes Album, sonst das kleinste. Bilder ohne Album bleiben ohne Unterschrift. Eine geänderte Unterschrift sendet das Bild neu |
 
 ### 3.4 Medienaufbereitung
 

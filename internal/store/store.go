@@ -44,13 +44,13 @@ type Frame struct {
 	Place     string    `json:"place"`     // the location the frame reports
 	PairedAt  time.Time `json:"pairedAt"`
 	Caption   string    `json:"caption"` // "" for none, "album" for the Immich album name
-	Screen   Size      `json:"screen"`
-	MaxVideo Size      `json:"maxVideo"`
-	Rotate   bool      `json:"rotate"` // mounted portrait: swap width and height
-	Scale    string    `json:"scale"`  // "crop" or "fit"
-	Limit    int       `json:"limit"`  // most photos to send; 0 means no limit
-	Mode     string    `json:"mode"`   // "auto", "local" or "relay"
-	Sources  Sources   `json:"sources"`
+	Screen    Size      `json:"screen"`
+	MaxVideo  Size      `json:"maxVideo"`
+	Rotate    bool      `json:"rotate"` // mounted portrait: swap width and height
+	Scale     string    `json:"scale"`  // "crop" or "fit"
+	Limit     int       `json:"limit"`  // most photos to send; 0 means no limit
+	Mode      string    `json:"mode"`   // "auto", "local" or "relay"
+	Sources   Sources   `json:"sources"`
 }
 
 // Config is the plain-text part of the store.

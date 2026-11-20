@@ -195,6 +195,12 @@ func (c *Client) Albums(ctx context.Context) ([]Album, error) {
 	return a, c.call(ctx, http.MethodGet, "/albums", nil, &a)
 }
 
+// AlbumsOf lists the albums an asset is in.
+func (c *Client) AlbumsOf(ctx context.Context, assetID string) ([]Album, error) {
+	var a []Album
+	return a, c.call(ctx, http.MethodGet, "/albums?assetId="+url.QueryEscape(assetID), nil, &a)
+}
+
 // Tag is one tag; Value is its full path, e.g. "Familie/Kinder".
 type Tag struct {
 	ID       string `json:"id"`

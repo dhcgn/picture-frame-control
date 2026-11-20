@@ -123,6 +123,8 @@
             </div>
             {#if !f.sources.albums?.length && !f.sources.tags?.length}
               <div class="note">Diesem Frame sind keine Alben oder Tags zugeordnet. <button class="link" onclick={onassign}>Zuordnen</button></div>
+            {:else if p.send === 0 && del === 0}
+              <div class="note ok">Alles aktuell. Auf diesem Frame gibt es nichts zu senden oder zu löschen.</div>
             {/if}
             {#if p.delete && !p.canDelete}
               <div class="note warn">{p.delete} Bilder müssten gelöscht werden, aber der App fehlt die Berechtigung „Verwalten“.</div>

@@ -35,8 +35,9 @@ type SyncService struct {
 	cacheDir string // prepared media lives in cacheDir/media
 	emit     func(name string, data any)
 
-	mu     sync.Mutex
-	cancel context.CancelFunc // set while a sync runs
+	mu       sync.Mutex
+	cancel   context.CancelFunc        // set while a sync runs
+	albumsOf map[string][]immich.Album // asset id -> its albums, for captions
 }
 
 // SyncProgress is emitted as "sync:progress".
@@ -101,12 +102,6 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	if err != nil {
 		return nil, err
 	}
-	var captions map[string]string
-	if f.Caption == "album" && len(f.Sources.Albums) > 0 {
-		if captions, err = albumCaptions(ctx, c, f.Sources.Albums); err != nil {
-			return nil, err
-		}
-	}
 	p := &prepared{frame: f}
 	var wanted []syncplan.Asset
 	for _, a := range assets {
@@ -114,7 +109,12 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 			p.skipped++ // ponytail: videos need the video+thumb transfer (M5)
 			continue
 		}
-		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName, Caption: captions[a.ID]})
+		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName})
+	}
+	if f.Caption == "album" {
+		if err := s.albumCaptions(ctx, c, wanted, f.Sources.Albums); err != nil {
+			return nil, err
+		}
 	}
 	slices.SortStableFunc(wanted, func(a, b syncplan.Asset) int { return b.Taken.Compare(a.Taken) })
 	if f.Limit > 0 && len(wanted) > f.Limit {
@@ -148,34 +148,67 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	return p, nil
 }
 
-// albumCaptions maps every asset in the given albums to an album name. A
-// photo in several of them gets the smallest album's name, which is usually
-// the more specific one ("Hochzeit Anna" rather than "Best of").
-func albumCaptions(ctx context.Context, c *immich.Client, albumIDs []string) (map[string]string, error) {
-	all, err := c.Albums(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var chosen []immich.Album
-	for _, a := range all {
-		if slices.Contains(albumIDs, a.ID) {
-			chosen = append(chosen, a)
-		}
-	}
-	slices.SortStableFunc(chosen, func(a, b immich.Album) int { return cmp.Compare(a.AssetCount, b.AssetCount) })
-	out := map[string]string{}
-	for _, a := range chosen {
-		assets, err := c.Assets(ctx, []string{a.ID}, nil)
-		if err != nil {
-			return nil, err
-		}
-		for _, x := range assets {
-			if _, ok := out[x.ID]; !ok {
-				out[x.ID] = a.Name
+// albumCaptions gives each asset the name of an Immich album it is in,
+// however it was selected (album or tag). Immich answers that per asset, so
+// the answers are kept for the session.
+func (s *SyncService) albumCaptions(ctx context.Context, c *immich.Client, assets []syncplan.Asset, selected []string) error {
+	sem := make(chan struct{}, 6)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	for i := range assets {
+		wg.Go(func() {
+			s.mu.Lock()
+			albums, ok := s.albumsOf[assets[i].ID]
+			s.mu.Unlock()
+			if !ok {
+				sem <- struct{}{}
+				var err error
+				albums, err = c.AlbumsOf(ctx, assets[i].ID)
+				<-sem
+				if err != nil {
+					mu.Lock()
+					firstErr = cmp.Or(firstErr, err)
+					mu.Unlock()
+					return
+				}
+				// ponytail: session cache; an album renamed in Immich shows after a restart
+				s.mu.Lock()
+				if s.albumsOf == nil {
+					s.albumsOf = map[string][]immich.Album{}
+				}
+				s.albumsOf[assets[i].ID] = albums
+				s.mu.Unlock()
 			}
+			assets[i].Caption = pickAlbum(albums, selected)
+		})
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return fmt.Errorf("Albumnamen für die Bildunterschrift nicht geladen: %w", firstErr)
+	}
+	return nil
+}
+
+// pickAlbum chooses the album to caption a photo with: one of the frame's
+// own albums if the photo is in one, else any; among several, the smallest,
+// which is usually the more specific ("Hochzeit Anna" rather than "Best of").
+func pickAlbum(albums []immich.Album, selected []string) string {
+	best := -1
+	for i, a := range albums {
+		if best < 0 {
+			best = i
+			continue
+		}
+		in, bestIn := slices.Contains(selected, a.ID), slices.Contains(selected, albums[best].ID)
+		if in && !bestIn || in == bestIn && a.AssetCount < albums[best].AssetCount {
+			best = i
 		}
 	}
-	return out, nil
+	if best < 0 {
+		return ""
+	}
+	return albums[best].Name
 }
 
 // takenAt is when the photo was taken, as the frame should file it.

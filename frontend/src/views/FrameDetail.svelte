@@ -316,7 +316,7 @@
             <button type="button" aria-pressed={form.caption === 'album'} onclick={() => (form.caption = 'album')}>Albumname</button>
           </div>
           <p class="hint">
-            Liegt ein Bild in mehreren der gewählten Alben, steht dort das kleinste. Bilder, die nur über einen Tag kommen, bleiben ohne Unterschrift.
+            Der Name eines Immich-Albums, in dem das Bild liegt, auch wenn es über einen Tag ausgewählt ist. Bei mehreren gewinnt ein zugeordnetes Album, sonst das kleinste. Bilder ohne Album bleiben ohne Unterschrift.
             {#if form.caption !== frame.caption}<br /><span class="warn">Nach dem Speichern sendet der nächste Sync die betroffenen Bilder neu.</span>{/if}
           </p>
         </div>
