@@ -143,7 +143,7 @@ Cache: `%LOCALAPPDATA%\picture-frame-control\cache\`
 | Fall | Quelle | Verarbeitung | Gesendet |
 |---|---|---|---|
 | Bild, ohne magick | `thumbnail?size=preview` (kurze Seite 1440 px), wenn sie den Bildschirm füllt, sonst `size=fullsize` | keine | `.jpg`, Scale-Type laut Frame |
-| Bild, mit magick | dieselbe Quelle aus dem Cache | crop: `magick in -auto-orient -resize WxH^> -quality 82 out.webp` · fit: `magick in -auto-orient -resize WxH> -quality 82 out.webp`. W×H = Screen, bei Hochkant-Montage getauscht. Schlägt magick fehl: Quelle unverändert senden und warnen | `.webp` |
+| Bild, mit magick | immer `size=fullsize` (bei JPEG, PNG, WebP das Original), damit nur einmal verlustbehaftet kodiert wird. Nach der Umwandlung gelöscht | crop: `magick in -auto-orient -resize WxH^> -quality 82 out.webp` · fit: `magick in -auto-orient -resize WxH> -quality 82 out.webp`. W×H = Screen, bei Hochkant-Montage getauscht. Schlägt magick fehl: Quelle unverändert senden und warnen | `.webp` |
 | Video, mit ffmpeg | `/assets/{id}/original`, als Stream in eine temporäre Datei, nach der Umwandlung gelöscht | `ffmpeg -i in -t 299 -map 0:v:0 -map 0:a:0? -vf scale=w='min(W,iw)':h='min(H,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2 -fpsmax 30 -c:v libx264 -preset medium -crf 23 -profile:v high -pix_fmt yuv420p -maxrate R -bufsize 2R -c:a aac -b:a 96k -ac 2 -movflags +faststart out.mp4`, danach ein Standbild bei 1 s als JPEG | `.mp4` + `.jpg`, Typ 2 „Video mit Vorschaubild“ |
 | Video, ohne ffmpeg oder kürzer als 4 s | – | übersprungen | – |
 

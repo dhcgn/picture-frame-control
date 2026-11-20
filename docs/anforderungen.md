@@ -74,7 +74,7 @@ Windows-Desktop-App (Go + Wails v3), die
 | ID | Anforderung |
 |---|---|
 | M-01 | Bilder ohne ImageMagick: Immich-Preview (JPEG) unverändert senden. Füllt sie den Bildschirm nicht (z. B. Hochformat auf Full HD), das Fullsize-Bild. Kein Bild soll unter der nativen Auflösung des Frames ankommen |
-| M-02 | Bilder mit ImageMagick (`magick.exe`, Pfad in Config): die Immich-Preview auf die native Frame-Auflösung verkleinern, als WebP. Das Bild deckt den Bildschirm ab („Zuschneiden“) oder passt hinein („Einpassen“). Den Zuschnitt selbst macht der Frame |
+| M-02 | Bilder mit ImageMagick (`magick.exe`, Pfad in Config): das Original (Immich `fullsize`) auf die native Frame-Auflösung verkleinern, als WebP. Das Bild deckt den Bildschirm ab („Zuschneiden“) oder passt hinein („Einpassen“). Den Zuschnitt selbst macht der Frame |
 | M-03 | Videos mit ffmpeg (Pfad in Config): nach den Frameo-Empfehlungen umwandeln: H.264/AAC in MP4, höchstens Bildschirmgröße (nie vergrößert), 30 fps, Audio 96 kbps, unter 125 MB. Länger als 4:59 wird gekürzt |
 | M-04 | Videos ohne ffmpeg oder kürzer als 4 s: überspringen und in der Vorschau als "übersprungen" ausweisen |
 | M-05 | Tool-Erkennung in den Einstellungen: Pfad prüfen, Version anzeigen |

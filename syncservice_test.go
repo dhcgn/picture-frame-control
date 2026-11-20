@@ -166,13 +166,13 @@ func TestSyncSendsVideos(t *testing.T) {
 	defer cancel()
 	clip := makeClip(t, ctx, ffmpeg, "1280x720", "30", true)
 	immichSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/api/search/metadata":
+		switch r.URL.Path {
+		case "/api/search/metadata":
 			_, _ = w.Write([]byte(`{"assets":{"items":[
 				{"id":"clip","type":"VIDEO","checksum":"c1","fileCreatedAt":"2024-05-01T10:00:00.000Z","originalFileName":"clip.mov","duration":"0:00:05.000000"},
 				{"id":"blink","type":"VIDEO","checksum":"c2","fileCreatedAt":"2024-05-02T10:00:00.000Z","originalFileName":"blink.mov","duration":"0:00:02.000000"}
 			],"nextCursor":null}}`))
-		case r.URL.Path == "/api/assets/clip/original":
+		case "/api/assets/clip/original":
 			http.ServeFile(w, r, clip)
 		default:
 			http.NotFound(w, r)

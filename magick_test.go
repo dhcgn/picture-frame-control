@@ -9,6 +9,7 @@ import (
 	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -103,9 +104,9 @@ func TestMediaFileNeverBelowScreen(t *testing.T) {
 }
 
 // TestMediaFileShrinks runs mediaFile with the ImageMagick installed here:
-// shrunk to cover or fit the screen, from the full-size image where the
-// preview falls short, never below the screen, cached, and the photo as it
-// came from Immich when ImageMagick fails.
+// always from the full-size image, shrunk to cover or fit the screen, never
+// enlarged, the download removed once converted, and the photo as it came
+// from Immich when ImageMagick fails.
 func TestMediaFileShrinks(t *testing.T) {
 	magick := tools["magick"].find()
 	if magick == "" {
@@ -134,7 +135,7 @@ func TestMediaFileShrinks(t *testing.T) {
 		{"land", frameOf(1280, 800, "crop", false), "1280x960 WEBP", "webp-1280x800-cover-q82"},
 		{"land", frameOf(1280, 800, "fit", false), "1067x800 WEBP", "webp-1280x800-fit-q82"},
 		{"land", frameOf(1280, 800, "crop", true), "1707x1280 WEBP", "webp-800x1280-cover-q82"},
-		{"port", frameOf(1920, 1080, "crop", false), "1920x2560 WEBP", "webp-1920x1080-cover-q82"}, // from fullsize
+		{"port", frameOf(1920, 1080, "crop", false), "1920x2560 WEBP", "webp-1920x1080-cover-q82"},
 		{"port", frameOf(1920, 1080, "fit", false), "810x1080 WEBP", "webp-1920x1080-fit-q82"},
 		{"tiny", frameOf(1920, 1080, "crop", false), "800x600 WEBP", "webp-1920x1080-cover-q82"}, // never enlarged
 		{"tiny", frameOf(1920, 1080, "fit", false), "800x600 WEBP", "webp-1920x1080-fit-q82"},
@@ -147,15 +148,18 @@ func TestMediaFileShrinks(t *testing.T) {
 			t.Errorf("%s on %+v %s: %s %q; want %s %q", tc.asset, tc.frame.Screen, tc.frame.Scale, got, variant, tc.wantSize, tc.variant)
 		}
 	}
-	if cnt.n["land/fullsize"] != 0 || cnt.n["port/fullsize"] != 1 {
-		t.Errorf("downloads %v: want the full-size image for the portrait photo on Full HD, not for the landscape one", cnt.n)
+	if n := cnt.n["land/preview"] + cnt.n["port/preview"] + cnt.n["tiny/preview"]; n != 0 || cnt.n["land/fullsize"] != 3 {
+		t.Errorf("downloads %v: want only full-size images, once per conversion", cnt.n)
+	}
+	if left, _ := filepath.Glob(filepath.Join(s.cacheDir, "media", "*_fullsize.*")); len(left) > 0 {
+		t.Errorf("full-size downloads left in the cache: %v", left)
 	}
 
 	// ImageMagick that fails: the photo still goes, as it came from Immich.
 	_ = s.store.Update(func(c *store.Config) error { c.Magick = magick + "-missing.exe"; return nil })
 	path, variant, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: "land", Checksum: "c", Name: "land.jpg"}, frameOf(1024, 768, "crop", false))
-	if err != nil || variant != "preview-jpg" || !strings.HasSuffix(path, "_preview.jpg") {
-		t.Errorf("failing ImageMagick: %s %q %v, want the preview", path, variant, err)
+	if err != nil || variant != "fullsize-jpg" || !strings.HasSuffix(path, "_fullsize.jpg") {
+		t.Errorf("failing ImageMagick: %s %q %v, want the full-size image", path, variant, err)
 	}
 	if len(cnt.warnings) != 1 || !strings.Contains(cnt.warnings[0], "ImageMagick") {
 		t.Errorf("warnings = %q, want one about ImageMagick", cnt.warnings)

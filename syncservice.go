@@ -551,22 +551,28 @@ func imageSize(path string) (w, h int, ok bool) {
 	return c.Width, c.Height, err == nil
 }
 
-// mediaFile returns a file ready to send for the asset: the smallest rendition
-// Immich has that fills the frame's screen, shrunk to that screen when
-// ImageMagick is set up. All of it stays in the cache, so frames with the same
-// screen and scaling share it.
+// mediaFile returns a file ready to send for the asset. With ImageMagick it is
+// the full-size image (the original, for formats a browser shows) shrunk to
+// the frame's screen, encoded once rather than on top of Immich's JPEG
+// preview; the full-size download goes once it is converted, as it is large.
+// Without ImageMagick it is the smallest rendition that fills the screen.
+// What is sent stays in the cache, so frames with the same screen and scaling
+// share it.
 // ponytail: the cache only grows; a "clear cache" button (E-04) when it gets big
 func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset, f store.Frame) (path, variant string, size int, err error) {
 	base := s.cacheBase(a)
 	w, h, shrunk, ok := s.shrinkTo(f)
+	if !ok {
+		return s.source(ctx, c, a.ID, base, f)
+	}
 	out := base + "_" + shrunk + "." + shrinkFormat
-	if st, err := os.Stat(out); ok && err == nil {
+	if st, err := os.Stat(out); err == nil {
 		return out, shrunk, int(st.Size()), nil
 	}
 
-	path, variant, size, err = s.source(ctx, c, a.ID, base, f)
-	if err != nil || !ok {
-		return path, variant, size, err
+	path, variant, size, err = s.fetch(ctx, c, a.ID, base, "fullsize")
+	if err != nil {
+		return "", "", 0, err
 	}
 	if err := shrink(ctx, s.store.Config().Magick, path, out, w, h, f.Scale == "fit"); err != nil {
 		if ctx.Err() != nil {
@@ -576,6 +582,7 @@ func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncpla
 			"%s: ImageMagick failed, sending the photo from Immich as it is: %v"), a.Name, err)
 		return path, variant, size, nil
 	}
+	_ = os.Remove(path)
 	st, err := os.Stat(out)
 	if err != nil {
 		return "", "", 0, err
