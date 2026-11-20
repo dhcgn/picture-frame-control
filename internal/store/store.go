@@ -52,8 +52,9 @@ type Frame struct {
 
 // Config is the plain-text part of the store.
 type Config struct {
-	ClientName string  `json:"clientName"`
-	Frames     []Frame `json:"frames"`
+	ClientName   string  `json:"clientName"`
+	ImmichServer string  `json:"immichServer"` // origin, e.g. https://photos.example.lan
+	Frames       []Frame `json:"frames"`
 }
 
 type secrets struct {

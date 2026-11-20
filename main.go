@@ -41,6 +41,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(frames),
 			application.NewService(&SettingsService{store: st, frames: frames}),
+			application.NewService(&ImmichService{store: st}),
 		},
 		Assets: application.AssetOptions{
 			Handler:    application.AssetFileServerFS(assets),

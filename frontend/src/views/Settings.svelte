@@ -1,17 +1,41 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { SettingsService } from '../../bindings/github.com/dhcgn/picture-frame-control'
+  import { ImmichService, SettingsService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import type { Settings } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
-  import { errText, loadFrames, notify, probeAll } from '../lib/state.svelte'
+  import { app, errText, loadFrames, loadImmich, loadSources, notify, probeAll } from '../lib/state.svelte'
 
   let s = $state<Settings | null>(null)
   let name = $state('')
+  let server = $state(app.immich.conn.server)
+  let apiKey = $state('')
+  let connecting = $state(false)
 
   async function load() {
     s = await SettingsService.Get()
     name = s.clientName
   }
   onMount(load)
+  // The stored address may arrive after this page opened.
+  $effect(() => {
+    if (!server && app.immich.conn.server) server = app.immich.conn.server
+  })
+
+  async function connect(e: SubmitEvent) {
+    e.preventDefault()
+    connecting = true
+    try {
+      const info = await ImmichService.Connect(server, apiKey)
+      apiKey = ''
+      await loadImmich()
+      app.sources = null
+      loadSources()
+      notify(`Mit Immich ${info.version} verbunden.`)
+    } catch (err) {
+      notify(errText(err), 'error')
+    } finally {
+      connecting = false
+    }
+  }
 
   async function saveName(e: SubmitEvent) {
     e.preventDefault()
@@ -46,7 +70,31 @@
   }
 </script>
 
-<div class="head"><div><h1>Einstellungen</h1><p>Immich und Werkzeuge folgen mit den nächsten Meilensteinen.</p></div></div>
+<div class="head"><div><h1>Einstellungen</h1><p>Werkzeuge für WebP und Videos folgen mit den nächsten Meilensteinen.</p></div></div>
+
+<h2 class="group-title">Immich</h2>
+<form class="form panel" onsubmit={connect}>
+  <div class="row">
+    <label class="k" for="iu">Server-Adresse<small>Ohne /api am Ende</small></label>
+    <div><input id="iu" type="text" inputmode="url" placeholder="https://photos.example.lan" bind:value={server} required /></div>
+  </div>
+  <div class="row">
+    <label class="k" for="ik">API-Key<small>Verschlüsselt gespeichert</small></label>
+    <div>
+      <input id="ik" type="password" autocomplete="off" bind:value={apiKey}
+        placeholder={app.immich.conn.hasKey ? 'Gespeichert. Leer lassen, um ihn zu behalten' : 'In Immich: Kontoeinstellungen → API-Schlüssel'} />
+      <button class="btn primary" disabled={connecting || !server.trim() || (!apiKey && !app.immich.conn.hasKey)}>
+        {connecting ? 'Prüfe…' : 'Verbinden'}
+      </button>
+      {#if app.immich.state === 'ok'}
+        <p class="hint ok">Verbunden mit Immich {app.immich.info?.version} als „{app.immich.info?.user}“.</p>
+      {:else if app.immich.state === 'error'}
+        <p class="hint warn">{app.immich.error}</p>
+      {/if}
+      <p class="hint">Der Key braucht Lesezugriff auf Alben, Tags und Assets. Für den Sync zusätzlich Ansehen und Herunterladen von Assets.</p>
+    </div>
+  </div>
+</form>
 
 {#if s}
   <h2 class="group-title">Identität</h2>
@@ -87,4 +135,5 @@
   .key { word-break: break-all; margin-bottom: 10px; }
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   .row input { margin-right: 6px; }
+  input[type='password'] { border: 1px solid var(--rule); background: var(--wall); border-radius: 6px; padding: 7px 10px; width: min(420px, 100%); }
 </style>

@@ -5,15 +5,27 @@
   import { FrameService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import type { MediaItem, SendProgress } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
   import FrameArt from '../lib/FrameArt.svelte'
-  import { app, errText, loadFrames, notify, probe, screenOf, statusLine, type Frame } from '../lib/state.svelte'
+  import { ImmichService } from '../../bindings/github.com/dhcgn/picture-frame-control'
+  import type { Selection } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
+  import { app, errText, loadFrames, loadSources, notify, probe, screenOf, sourceIds, statusLine, type Frame } from '../lib/state.svelte'
 
-  let { id, onback }: { id: string; onback: () => void } = $props()
+  let { id, onback, onassign }: { id: string; onback: () => void; onassign: () => void } = $props()
 
   const frame = $derived(app.frames.find((f) => f.id === id))
   const status = $derived(app.status[id])
   const line = $derived(statusLine(status))
 
   let tab = $state<'media' | 'sources' | 'settings'>('media')
+
+  // ---- sources ----
+  let selection = $state<Selection | null>(null)
+  $effect(() => {
+    if (tab !== 'sources' || !frame || app.immich.state !== 'ok') return
+    loadSources()
+    const { albums, tags } = frame.sources
+    if (!albums?.length && !tags?.length) return
+    ImmichService.Preview(albums ?? [], tags ?? []).then((r) => (selection = r)).catch(() => (selection = null))
+  })
 
   // ---- photos on the frame ----
   let media = $state<MediaItem[] | null>(null)
@@ -243,10 +255,38 @@
       {/if}
     {/if}
   {:else if tab === 'sources'}
-    <div class="panel empty">
-      <p><strong>Alben und Tags aus Immich kommen mit dem nächsten Meilenstein.</strong></p>
-      <p class="muted">Dann wählst du in der Zuordnung, welche Alben und Tags auf diesen Frame gespiegelt werden.</p>
+    {@const ids = sourceIds(frame)}
+    <div class="toolbar">
+      <span class="muted">Diese Alben und Tags bilden zusammen die Bilderauswahl des Frames.</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick={onassign}>In der Zuordnung bearbeiten</button>
     </div>
+    {#if ids.length === 0}
+      <div class="panel empty">
+        <p><strong>Diesem Frame sind noch keine Alben oder Tags zugeordnet.</strong></p>
+        <p class="muted">Ohne Zuordnung spiegelt der Sync nichts auf diesen Frame.</p>
+      </div>
+    {:else}
+      <ul class="list panel">
+        {#each ids as sid (sid)}
+          {@const src = app.sources?.find((x) => x.id === sid)}
+          <li>
+            <span class="kind">{frame.sources.tags?.includes(sid) ? 'Tag' : 'Album'}</span>
+            {#if src}{src.name}{:else if app.sources}<span class="warn">In Immich nicht mehr vorhanden</span>{:else}<span class="mono muted">{sid}</span>{/if}
+            <span class="n mono">{src && src.count >= 0 ? src.count.toLocaleString('de-DE') : ''}</span>
+          </li>
+        {/each}
+      </ul>
+      {#if selection}
+        <p class="hint">
+          Zusammen {selection.images.toLocaleString('de-DE')} Bilder{#if selection.videos}
+            und {selection.videos.toLocaleString('de-DE')} Videos (vorerst übersprungen){/if}, Doppelte einmal gezählt.
+          {#if frame.limit && selection.images > frame.limit}
+            <span class="warn">Das Limit von {frame.limit} Bildern schneidet {selection.images - frame.limit} ältere ab.</span>
+          {/if}
+        </p>
+      {/if}
+    {/if}
   {:else}
     <form class="form panel" onsubmit={save}>
       <div class="row"><label class="k" for="fn">Name</label><div><input id="fn" type="text" bind:value={form.name} required /></div></div>
@@ -343,6 +383,11 @@
   .badge { position: absolute; right: 5px; bottom: 5px; font: 11px var(--mono); padding: 1px 6px; border-radius: 3px; background: rgb(0 0 0 / .62); color: #fff; }
   .empty { padding: 22px 24px; }
   .empty p { margin: 0 0 10px; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+  .list li:last-child { border-bottom: none; }
+  .kind { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); width: 48px; }
+  .list .n { margin-left: auto; }
   .perm { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
   .perm .y::before { content: '✓ '; color: var(--send); }
   .perm .n::before { content: '✕ '; color: var(--del); }

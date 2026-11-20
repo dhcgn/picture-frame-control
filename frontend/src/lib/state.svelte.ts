@@ -1,15 +1,60 @@
-import { FrameService } from '../../bindings/github.com/dhcgn/picture-frame-control'
-import type { FrameStatus } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
+import { FrameService, ImmichService } from '../../bindings/github.com/dhcgn/picture-frame-control'
+import type { Connection, FrameStatus, ServerInfo, Source } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
 import type { Frame } from '../../bindings/github.com/dhcgn/picture-frame-control/internal/store/models'
 
-export type { Frame, FrameStatus }
+export type { Frame, FrameStatus, Source }
 
-/** Shared app state: the paired frames and what each last reported. */
+/** Shared app state. */
 export const app = $state({
   frames: [] as Frame[],
   status: {} as Record<string, FrameStatus | undefined>, // undefined while connecting
   notice: null as null | { text: string; kind: 'error' | 'ok' },
+  immich: {
+    state: 'checking' as 'checking' | 'none' | 'ok' | 'error',
+    conn: { server: '', hasKey: false } as Connection,
+    info: null as ServerInfo | null,
+    error: '',
+  },
+  sources: null as Source[] | null, // albums and tags, loaded once per session
+  sourcesLoading: false,
+  sourcesError: '',
+  dirty: false, // unsaved edits in the assignment matrix
 })
+
+export async function loadImmich() {
+  app.immich.conn = await ImmichService.Connection()
+  if (!app.immich.conn.server) {
+    app.immich.state = 'none'
+    return
+  }
+  app.immich.state = 'checking'
+  try {
+    app.immich.info = await ImmichService.Status()
+    app.immich.state = 'ok'
+    app.immich.error = ''
+  } catch (e) {
+    app.immich.state = 'error'
+    app.immich.error = errText(e)
+  }
+}
+
+export async function loadSources(force = false) {
+  if ((app.sources && !force) || app.sourcesLoading) return
+  app.sourcesLoading = true
+  app.sourcesError = ''
+  try {
+    app.sources = (await ImmichService.Sources()) ?? []
+  } catch (e) {
+    app.sourcesError = errText(e)
+  } finally {
+    app.sourcesLoading = false
+  }
+}
+
+/** Album and tag ids assigned to a frame. */
+export function sourceIds(f: Frame): string[] {
+  return [...(f.sources.albums ?? []), ...(f.sources.tags ?? [])]
+}
 
 let noticeTimer: ReturnType<typeof setTimeout>
 export function notify(text: string, kind: 'error' | 'ok' = 'ok') {

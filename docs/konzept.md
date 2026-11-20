@@ -123,10 +123,12 @@ Cache: `%LOCALAPPDATA%\picture-frame-control\cache\`
 - Retry: 3 Versuche mit Backoff bei 429, 5xx und Netzwerkfehlern.
 - Header `x-api-key`.
 
-**Zu verifizieren:**
-- Liefert `GET /albums` auch geteilte Alben, oder braucht es `?shared=true`?
-- Schließt `tagIds.any` Unter-Tags ein?
-- Werden Papierkorb-Assets ohne `trashedAt`-Filter ausgeschlossen?
+**Am echten Server geklärt (Immich 3.4.0, 2026-11-20):**
+- `GET /albums` ohne Parameter liefert eigene und geteilte Alben.
+- `tagIds.any` schließt Unter-Tags ein: Ein Eltern-Tag zählt die Summe seiner Unter-Tags.
+- Papierkorb wird ausdrücklich über `trashedAt: {eq: null}` ausgeschlossen.
+- Zählen über `POST /search/statistics` mit demselben Filter. Das veraltete Feld `total` wird nicht verwendet.
+- Archivierte Assets bleiben vorerst draußen (`visibility: timeline`, offener Punkt O-5).
 
 ## 6. Frame-Anbindung
 
@@ -214,7 +216,7 @@ Events Go → UI: `sync:progress {frame, phase, done, total, asset}` · `sync:lo
 |---|---|---|
 | M0 ✓ | Go-Modul, Wails-v3-Template, LICENSE/NOTICE, unframeo-Pakete übernehmen, `link` extrahieren | Build und übernommene Tests grün (2026-11-20) |
 | M1 ✓ | Frame-Verwaltung F-01..F-13, store mit DPAPI, unframeo-Import | Frames per UI steuerbar (2026-11-20, lesend am echten Frame geprüft) |
-| M2 | Immich-Client, Alben/Tags, Zuordnungsmatrix | Quellen je Frame wählbar |
+| M2 ✓ | Immich-Client, Alben/Tags, Zuordnungsmatrix | Quellen je Frame wählbar (2026-11-20, gegen Immich 3.4.0 geprüft) |
 | M3 | Sync für Bilder ohne magick, syncplan mit Test, Live-Test O-2 | Spiegeln funktioniert |
 | M4 | magick/WebP, Tool-Erkennung, Cache, Live-Test O-3 | Kleinere Dateien |
 | M5 | Spike Video-Protokoll, danach ffmpeg-Pipeline | Videos auf dem Frame |
