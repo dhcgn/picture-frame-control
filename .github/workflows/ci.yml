@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WAILS_VERSION: v3.1.0
+
+jobs:
+  build:
+    name: Build & test (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Cache wails3
+        id: wails3
+        uses: actions/cache@v6
+        with:
+          path: ~\go\bin\wails3.exe
+          key: wails3-${{ runner.os }}-${{ env.WAILS_VERSION }}
+
+      - name: Install wails3
+        if: steps.wails3.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Builds the frontend too, which go vet and go test need for //go:embed.
+      - name: Build
+        run: wails3 build
+
+      - name: gofmt
+        shell: pwsh
+        run: |
+          $bad = gofmt -l .
+          if ($bad) { $bad; throw 'gofmt: these files need formatting' }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: npm run check
+
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: picture-frame-control
+          path: bin/picture-frame-control.exe
+          if-no-files-found: error

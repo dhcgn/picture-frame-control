@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/updater"
 
 	"github.com/dhcgn/picture-frame-control/internal/store"
 )
@@ -23,6 +24,10 @@ func init() {
 }
 
 func main() {
+	// After an update, the updater re-runs this program as a helper that
+	// swaps in the new binary. That has to happen before anything else starts.
+	updater.HandleHelperMode()
+
 	dir, err := store.DefaultDir()
 	if err != nil {
 		log.Fatal(err)
@@ -42,6 +47,7 @@ func main() {
 		store: st, frames: frames, immich: im, dataDir: dir, cacheDir: cacheDir,
 		emit: func(name string, data any) { application.Get().Event.Emit(name, data) },
 	}
+	updates := &UpdateService{}
 
 	app := application.New(application.Options{
 		Name:        "Picture-Frame-Control",
@@ -51,6 +57,7 @@ func main() {
 			application.NewService(&SettingsService{store: st, frames: frames}),
 			application.NewService(im),
 			application.NewService(syncer),
+			application.NewService(updates),
 		},
 		Assets: application.AssetOptions{
 			Handler:    application.AssetFileServerFS(assets),
@@ -58,8 +65,17 @@ func main() {
 		},
 	})
 
+	updates.app = app
+	if version != "dev" {
+		if err := initUpdater(app); err != nil {
+			log.Printf("%v (updates disabled)", err)
+		} else {
+			updates.enabled = true
+		}
+	}
+
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "Picture-Frame-Control",
+		Title:            "Picture-Frame-Control " + version,
 		Width:            1280,
 		Height:           800,
 		MinWidth:         960,

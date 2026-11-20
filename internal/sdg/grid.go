@@ -222,7 +222,10 @@ func (g *Grid) notePong(seq uint32) {
 	g.pingMu.Lock()
 	defer g.pingMu.Unlock()
 	if seq == g.pingSeq-1 && !g.lastPing.IsZero() {
-		g.rtt = time.Since(g.lastPing)
+		// Windows' monotonic clock ticks coarser than a loopback round
+		// trip, so a pong can measure as zero -- which reads as "nothing
+		// measured yet". An answered ping took at least some time.
+		g.rtt = max(time.Since(g.lastPing), time.Nanosecond)
 	}
 }
 

@@ -1,10 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { Browser } from '@wailsio/runtime'
   import { ImmichService, SettingsService } from '../../bindings/github.com/dhcgn/picture-frame-control'
   import type { Settings } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
-  import { app, errText, loadFrames, loadImmich, loadSources, notify, probeAll } from '../lib/state.svelte'
+  import { app, checkUpdate, errText, installUpdate, loadFrames, loadImmich, loadSources, notify, probeAll } from '../lib/state.svelte'
 
   let s = $state<Settings | null>(null)
+  let checking = $state(false)
+
+  async function lookForUpdate() {
+    checking = true
+    await checkUpdate()
+    checking = false
+    if (app.update?.enabled && !app.update.available) notify(`${app.update.current} ist die neueste Version.`)
+  }
   let name = $state('')
   let server = $state(app.immich.conn.server)
   let apiKey = $state('')
@@ -131,9 +140,32 @@
   </div>
 {/if}
 
+{#if app.update}
+  {@const u = app.update}
+  <h2 class="group-title">Version</h2>
+  <div class="form panel">
+    <div class="row">
+      <span class="k">Installiert<small>Updates kommen von GitHub, geprüft per SHA-256</small></span>
+      <div>
+        <span class="mono">{u.current}</span>
+        {#if !u.enabled}
+          <p class="hint">Entwicklungsversion: sucht keine Updates.</p>
+        {:else if u.available}
+          <p class="hint ok">Version {u.latest} ist verfügbar. <button class="link" onclick={() => Browser.OpenURL(u.url)}>Was ist neu?</button></p>
+          <button class="btn primary" onclick={installUpdate}>Jetzt aktualisieren</button>
+        {:else}
+          <button class="btn" onclick={lookForUpdate} disabled={checking}>{checking ? 'Suche…' : 'Nach Updates suchen'}</button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .key { word-break: break-all; margin-bottom: 10px; }
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   .row input { margin-right: 6px; }
+  .link { all: unset; cursor: pointer; text-decoration: underline; }
+  .link:focus-visible { outline: 2px solid var(--brass); }
   input[type='password'] { border: 1px solid var(--rule); background: var(--wall); border-radius: 6px; padding: 7px 10px; width: min(420px, 100%); }
 </style>

@@ -1,0 +1,121 @@
+name: Release
+
+# Push a tag like v1.2.3 to publish a release. A tag with a suffix
+# (v1.3.0-rc.1) becomes a pre-release, which the in-app updater ignores.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the release
+
+env:
+  WAILS_VERSION: v3.1.0
+
+jobs:
+  notes:
+    name: Release notes
+    runs-on: ubuntu-latest
+    env:
+      # Optional. With a token that may use GitHub Copilot, the notes are
+      # written by AI from the commits since the last release. Without it,
+      # the release gets GitHub's generated notes only. See README.
+      COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the previous tag and the commits since
+
+      - name: Collect the changes since the previous release
+        run: |
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            echo "Hier sind die Commits von Picture-Frame-Control ${prev:-(erste Version)} bis ${GITHUB_REF_NAME}."
+            echo "Picture-Frame-Control ist eine Windows-App, die Alben und Tags aus Immich auf Frameo-Bilderrahmen spiegelt."
+            echo "Schreibe daraus Release Notes auf Deutsch für Anwender:"
+            echo "- Abschnitte \"Neu\", \"Verbessert\", \"Behoben\", nur wenn es dazu etwas gibt"
+            echo "- je Punkt ein kurzer Satz, was sich für Anwender ändert, keine Commit-Hashes"
+            echo "- interne Änderungen (Tests, Workflows, Refactoring) weglassen oder in einem Satz unter \"Intern\" zusammenfassen"
+            echo "- nur Markdown, ohne Einleitung und ohne Schlusssatz"
+            echo
+            git log --no-merges --format='* %s%n%b' "${prev:+$prev..}${GITHUB_REF_NAME}"
+          } > prompt.txt
+
+      - name: Install Copilot CLI
+        if: env.COPILOT_PAT != ''
+        run: npm install -g @github/copilot
+
+      - name: Write the notes with AI
+        id: ai
+        if: env.COPILOT_PAT != ''
+        continue-on-error: true # a failed AI step must not block the release
+        uses: actions/ai-inference@v3
+        with:
+          prompt-file: prompt.txt
+          system-prompt: Du schreibst knappe, sachliche Release Notes. Du erfindest nichts, was nicht in den Commits steht.
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
+
+      - name: Hand the notes to the release job
+        id: notes
+        env:
+          RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
+        run: |
+          eof=NOTES_$(openssl rand -hex 8)
+          {
+            echo "body<<$eof"
+            if [ -n "$RESPONSE_FILE" ] && [ -s "$RESPONSE_FILE" ]; then cat "$RESPONSE_FILE"; echo; fi
+            echo "$eof"
+          } >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Build & publish (windows)
+    needs: notes
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install wails3
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # VERSION ends up in the binary (-X main.version) and in the window title.
+      - name: Build
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: wails3 build
+
+      # The updater picks the asset whose name contains "windows" and "amd64"
+      # and verifies it against SHA256SUMS.
+      - name: Name and checksum
+        shell: bash
+        run: |
+          mkdir dist
+          cp bin/picture-frame-control.exe "dist/picture-frame-control_${GITHUB_REF_NAME#v}_windows_amd64.exe"
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          body: ${{ needs.notes.outputs.body }}
+          generate_release_notes: true # appends the changelog link after the AI notes
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/*

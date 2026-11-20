@@ -1,0 +1,4 @@
+# One line ending everywhere, so gofmt and diffs agree on every machine.
+* text=auto eol=lf
+*.png binary
+*.ico binary

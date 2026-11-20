@@ -27,6 +27,9 @@ Changes made, for the purposes of section 5(a) of the licence:
     descriptor field; regenerate them with protoc to update it.
   - internal/config/config_test.go skips the Unix file-permission check on
     Windows.
+  - internal/sdg/grid.go records an answered ping as at least 1ns: on
+    Windows a loopback round trip could measure as zero, which read as "no
+    round trip yet" and made TestDialKeepsPinging fail at random.
   - internal/link replaces the command-line flags of connect, dialGrid,
     connectLocal, pair and discover with an Options struct and reports
     errors in German.

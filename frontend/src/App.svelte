@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { app, listenSync, loadFrames, loadImmich, probeAll } from './lib/state.svelte'
+  import { app, checkUpdate, installUpdate, listenSync, loadFrames, loadImmich, probeAll } from './lib/state.svelte'
   import Frames from './views/Frames.svelte'
   import FrameDetail from './views/FrameDetail.svelte'
   import Assignment from './views/Assignment.svelte'
@@ -13,6 +13,7 @@
 
   onMount(async () => {
     listenSync()
+    checkUpdate()
     loadImmich()
     await loadFrames()
     probeAll()
@@ -42,7 +43,7 @@
 
 <div class="shell">
   <nav class="side" aria-label="Hauptnavigation">
-    <div class="brand">Picture-Frame-Control<small>Immich → Frameo</small></div>
+    <div class="brand">Picture-Frame-Control<small>Immich → Frameo{#if app.update} · {app.update.current}{/if}</small></div>
     <button class="nav" aria-current={view === 'frames' || view === 'detail' ? 'page' : undefined} onclick={() => go('frames')}>
       Frames <span class="count">{app.frames.length}</span>
     </button>
@@ -51,6 +52,11 @@
       Sync {#if app.sync.running}<span class="count"><span class="dot busy"></span>läuft</span>{/if}
     </button>
     <button class="nav" aria-current={view === 'settings' ? 'page' : undefined} onclick={() => go('settings')}>Einstellungen</button>
+    {#if app.update?.available}
+      <button class="update" onclick={installUpdate} title="Lädt die neue Version, prüft sie und startet neu">
+        Update auf {app.update.latest}
+      </button>
+    {/if}
     <button class="foot" onclick={() => go('settings')} title={app.immich.error || app.immich.conn.server}>
       <span class="dot {immichLine.dot}"></span><b>{immichLine.text}</b>
       {#if app.immich.conn.server}<br /><span class="host">{app.immich.conn.server.replace(/^https?:\/\//, '')}</span>{/if}
@@ -96,6 +102,9 @@
   .nav[aria-current='page'] { color: var(--side-ink); background: rgb(255 255 255 / .08); box-shadow: inset 3px 0 0 var(--brass); }
   .nav:disabled { cursor: default; opacity: .5; }
   .count { margin-left: auto; font: 12px var(--mono); color: var(--side-ink-2); }
+  .update { all: unset; cursor: pointer; margin-top: auto; margin-bottom: 10px; padding: 9px 10px; border-radius: 6px; background: var(--brass); color: var(--brass-ink); font-weight: 700; font-size: 14px; }
+  .update:focus-visible { outline: 2px solid var(--side-ink); }
+  .update + .foot { margin-top: 0; }
   .foot { all: unset; cursor: pointer; margin-top: auto; font-size: 13px; color: var(--side-ink-2); padding: 12px 10px 0; border-top: 1px solid rgb(255 255 255 / .1); }
   .foot b { color: var(--side-ink); font-weight: 400; }
   .foot .host { font: 12px var(--mono); word-break: break-all; }

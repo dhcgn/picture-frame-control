@@ -1,7 +1,7 @@
 import { Events } from '@wailsio/runtime'
-import { FrameService, ImmichService, SyncService } from '../../bindings/github.com/dhcgn/picture-frame-control'
+import { FrameService, ImmichService, SyncService, UpdateService } from '../../bindings/github.com/dhcgn/picture-frame-control'
 import type {
-  Connection, FramePlan, FrameResult, FrameStatus, ServerInfo, Source, SyncLog, SyncProgress,
+  Connection, FramePlan, FrameResult, FrameStatus, ServerInfo, Source, SyncLog, SyncProgress, UpdateInfo,
 } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
 import type { Frame } from '../../bindings/github.com/dhcgn/picture-frame-control/internal/store/models'
 
@@ -22,6 +22,7 @@ export const app = $state({
   sourcesLoading: false,
   sourcesError: '',
   dirty: false, // unsaved edits in the assignment matrix
+  update: null as UpdateInfo | null,
   // Kept here, not in the view, so a running sync survives switching views.
   sync: {
     plans: null as FramePlan[] | null,
@@ -32,6 +33,21 @@ export const app = $state({
     results: null as FrameResult[] | null,
   },
 })
+
+/** Shows the running version at once, then asks GitHub for a newer one. */
+export async function checkUpdate() {
+  app.update ??= await UpdateService.Version()
+  app.update = await UpdateService.Check()
+}
+
+/** Opens the update window; it downloads, verifies and restarts. */
+export async function installUpdate() {
+  try {
+    await UpdateService.Install()
+  } catch (e) {
+    notify(errText(e), 'error')
+  }
+}
 
 /** Subscribes to the sync events; call once. */
 export function listenSync() {
