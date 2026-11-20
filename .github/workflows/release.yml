@@ -5,6 +5,9 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Dry run: writes the notes for the commits since the last tag into the job
+  # summary and publishes nothing.
+  workflow_dispatch:
 
 permissions:
   contents: write # create the release
@@ -55,6 +58,9 @@ jobs:
         with:
           prompt-file: prompt.txt
           system-prompt: Du schreibst knappe, sachliche Release Notes. Du erfindest nichts, was nicht in den Commits steht.
+          # Empty lets the Copilot CLI choose; the action's default (gpt-4.1)
+          # is no longer offered and fails with "Model is not available".
+          model: ''
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
 
@@ -69,10 +75,16 @@ jobs:
             if [ -n "$RESPONSE_FILE" ] && [ -s "$RESPONSE_FILE" ]; then cat "$RESPONSE_FILE"; echo; fi
             echo "$eof"
           } >> "$GITHUB_OUTPUT"
+          if [ -n "$RESPONSE_FILE" ] && [ -s "$RESPONSE_FILE" ]; then
+            cat "$RESPONSE_FILE" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No AI notes; the release gets GitHub's generated notes." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   release:
     name: Build & publish (windows)
     needs: notes
+    if: github.event_name == 'push' # a dry run publishes nothing
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
