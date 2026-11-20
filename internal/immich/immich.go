@@ -229,23 +229,38 @@ func (c *Client) Tags(ctx context.Context) ([]Tag, error) {
 
 // Asset is what the sync needs to know about one photo or video.
 type Asset struct {
-	ID               string `json:"id"`
-	Type             string `json:"type"` // IMAGE or VIDEO
-	Checksum         string `json:"checksum"`
-	LocalDateTime    string `json:"localDateTime"` // wall-clock time where taken, marked as UTC
-	FileCreatedAt    string `json:"fileCreatedAt"` // the moment it was taken, UTC
-	OriginalFileName string `json:"originalFileName"`
-	Duration         string `json:"duration"` // videos: "h:mm:ss.ffffff"
+	ID               string   `json:"id"`
+	Type             string   `json:"type"` // IMAGE or VIDEO
+	Checksum         string   `json:"checksum"`
+	LocalDateTime    string   `json:"localDateTime"` // wall-clock time where taken, marked as UTC
+	FileCreatedAt    string   `json:"fileCreatedAt"` // the moment it was taken, UTC
+	OriginalFileName string   `json:"originalFileName"`
+	Duration         duration `json:"duration"`
 }
 
 // Length is a video's running time, zero when Immich does not say.
-func (a Asset) Length() time.Duration {
-	var h, m int
-	var s float64
-	if n, _ := fmt.Sscanf(a.Duration, "%d:%d:%f", &h, &m, &s); n != 3 {
-		return 0
+func (a Asset) Length() time.Duration { return time.Duration(a.Duration) }
+
+// duration is a running time as Immich states it: milliseconds in current
+// versions, "h:mm:ss.ffffff" in older ones, null for photos. Anything else
+// counts as unknown rather than spoiling the whole answer.
+type duration time.Duration
+
+func (d *duration) UnmarshalJSON(b []byte) error {
+	var ms float64
+	if json.Unmarshal(b, &ms) == nil {
+		*d = duration(ms * float64(time.Millisecond))
+		return nil
 	}
-	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(s*float64(time.Second))
+	var s string
+	var h, m int
+	var sec float64
+	if json.Unmarshal(b, &s) == nil {
+		if n, _ := fmt.Sscanf(s, "%d:%d:%f", &h, &m, &sec); n == 3 {
+			*d = duration(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(sec*float64(time.Second)))
+		}
+	}
+	return nil
 }
 
 // Original writes an asset's original file to w. A video can take minutes,

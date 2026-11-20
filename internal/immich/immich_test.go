@@ -13,15 +13,21 @@ import (
 	"time"
 )
 
+// TestAssetLength reads a video's running time in both forms Immich has used:
+// milliseconds (current) and "h:mm:ss.ffffff" (older), and null for photos.
 func TestAssetLength(t *testing.T) {
 	for in, want := range map[string]time.Duration{
-		"0:00:05.000000": 5 * time.Second,
-		"0:04:59.500000": 4*time.Minute + 59500*time.Millisecond,
-		"1:02:03.000000": time.Hour + 2*time.Minute + 3*time.Second,
-		"":               0, // Immich did not say
+		`5000`:             5 * time.Second,
+		`299500`:           4*time.Minute + 59500*time.Millisecond,
+		`null`:             0, // a photo
+		`"0:00:05.000000"`: 5 * time.Second,
+		`"1:02:03.000000"`: time.Hour + 2*time.Minute + 3*time.Second,
+		`""`:               0,
+		`{"odd":1}`:        0, // unknown, not an error
 	} {
-		if got := (Asset{Duration: in}).Length(); got != want {
-			t.Errorf("Length(%q) = %s, want %s", in, got, want)
+		var a Asset
+		if err := json.Unmarshal([]byte(`{"id":"x","duration":`+in+`}`), &a); err != nil || a.Length() != want {
+			t.Errorf("duration %s: %s, %v; want %s", in, a.Length(), err, want)
 		}
 	}
 }

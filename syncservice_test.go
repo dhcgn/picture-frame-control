@@ -156,7 +156,8 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 
 // TestSyncSendsVideos syncs videos with the ffmpeg installed here: a 5-second
 // clip goes to the frame as a video with its still, a 2-second one is skipped
-// because Frameo takes none that short.
+// because Frameo takes none that short. Their lengths come in both forms
+// Immich has used, text and milliseconds.
 func TestSyncSendsVideos(t *testing.T) {
 	ffmpeg := tools["ffmpeg"].find()
 	if ffmpeg == "" {
@@ -170,7 +171,7 @@ func TestSyncSendsVideos(t *testing.T) {
 		case "/api/search/metadata":
 			_, _ = w.Write([]byte(`{"assets":{"items":[
 				{"id":"clip","type":"VIDEO","checksum":"c1","fileCreatedAt":"2024-05-01T10:00:00.000Z","originalFileName":"clip.mov","duration":"0:00:05.000000"},
-				{"id":"blink","type":"VIDEO","checksum":"c2","fileCreatedAt":"2024-05-02T10:00:00.000Z","originalFileName":"blink.mov","duration":"0:00:02.000000"}
+				{"id":"blink","type":"VIDEO","checksum":"c2","fileCreatedAt":"2024-05-02T10:00:00.000Z","originalFileName":"blink.mov","duration":2000}
 			],"nextCursor":null}}`))
 		case "/api/assets/clip/original":
 			http.ServeFile(w, r, clip)
