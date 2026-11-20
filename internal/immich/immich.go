@@ -137,20 +137,21 @@ type rawBody struct {
 	contentType string
 }
 
-// Preview downloads an asset's preview image: about 1440 pixels on the long
-// side, already rotated upright, JPEG unless the server is set otherwise. It
-// returns the bytes and the file extension that fits them.
-func (c *Client) Preview(ctx context.Context, id string) ([]byte, string, error) {
+// Thumbnail downloads a rendition of an asset and returns the bytes and the
+// file extension that fits them. size is "preview" (1440 pixels on the short
+// side by default, already upright, JPEG unless the server is set otherwise)
+// or "fullsize": the original for formats a browser shows, else a full-size
+// JPEG where the server makes one, else the preview again.
+func (c *Client) Thumbnail(ctx context.Context, id, size string) ([]byte, string, error) {
 	var r rawBody
-	if err := c.call(ctx, http.MethodGet, "/assets/"+url.PathEscape(id)+"/thumbnail?size=preview", nil, &r); err != nil {
+	if err := c.call(ctx, http.MethodGet, "/assets/"+url.PathEscape(id)+"/thumbnail?size="+url.QueryEscape(size), nil, &r); err != nil {
 		return nil, "", err
 	}
 	ext := "jpg"
-	switch {
-	case strings.Contains(r.contentType, "webp"):
-		ext = "webp"
-	case strings.Contains(r.contentType, "png"):
-		ext = "png"
+	for _, e := range []string{"webp", "png", "gif", "avif"} {
+		if strings.Contains(r.contentType, e) {
+			ext = e
+		}
 	}
 	return r.data, ext, nil
 }

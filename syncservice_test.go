@@ -136,4 +136,20 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 	if again.Keep != 2 || again.Send != 0 || again.Delete != 0 || len(again.Foreign) != 0 {
 		t.Errorf("second Preview = %+v, want everything kept", again)
 	}
+
+	// Force: everything this app sent is replaced, though nothing changed.
+	old := []int64{m.Entries[0].MediaID, m.Entries[1].MediaID}
+	res, err = s.Run(ctx, []RunFrame{{FrameID: f.ID, Force: true}})
+	if err != nil || res[0].Sent != 2 || res[0].Deleted != 2 || res[0].Error != "" {
+		t.Fatalf("forced Run = %+v, %v (logs %q)", res, err, logs)
+	}
+	if d := frame.Deleted(); !slices.Contains(d, old[0]) || !slices.Contains(d, old[1]) {
+		t.Errorf("deleted %v, want the old copies %v", d, old)
+	}
+	if photos := frame.Photos(); len(photos) != 4 || photos[2].Media.GetCaptureDate() != want {
+		t.Errorf("frame got %d photos in all, want 2 more, newest first", len(photos))
+	}
+	if m, _ := syncplan.Load(s.manifestPath(f.ID)); len(m.Entries) != 2 {
+		t.Errorf("manifest after force = %+v, want the 2 photos once each", m.Entries)
+	}
 }

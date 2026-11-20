@@ -9,20 +9,22 @@ A Windows app that manages Frameo digital photo frames and mirrors albums and ta
 - Assign Immich albums and tags to frames (many to many), with a preview of what a sync will change
 - Sync: send new photos, remove the ones no longer selected, and touch photos the app did not send only when you say so
 - Optionally use the album name as the photo caption
+- Optionally shrink photos to the frame's resolution as WebP with [ImageMagick](https://imagemagick.org)
 
 The user interface is in English and German; by default it follows the Windows display language.
 
 ## Installation
 
 1. Download the latest `picture-frame-control_<version>_windows_amd64.exe` from [Releases](https://github.com/dhcgn/picture-frame-control/releases/latest) and run it. There is no installer.
-2. Under **Einstellungen** (settings), enter your Immich address and API key. The key needs read access to albums, tags and assets.
+2. Under **Settings**, enter your Immich address and API key. The key needs read access to albums, tags and assets.
 3. Under **Frames**, pair a frame with the code shown on its display, or take over existing pairings from [unframeo](https://github.com/borje/unframeo).
+4. Optional: install [ImageMagick](https://imagemagick.org/script/download.php#windows) and click **Find** under **Settings → Shrinking photos**. Photos then go to the frames shrunk to their screen as WebP instead of as Immich's preview.
 
 Settings are stored in `%APPDATA%\picture-frame-control`. The API key and the pairing key are encrypted there for your Windows user (DPAPI).
 
 ## Updates
 
-On start, the app asks GitHub whether a newer version exists. If one does, the sidebar shows "Update auf vX". Only a click downloads it, verifies it against `SHA256SUMS`, replaces the program and restarts it. Pre-releases (`v1.2.0-rc.1`) are never offered.
+On start, the app asks GitHub whether a newer version exists. If one does, the sidebar offers the update. Only a click downloads it, verifies it against `SHA256SUMS`, replaces the program and restarts it. Pre-releases (`v1.2.0-rc.1`) are never offered.
 
 ## Development
 

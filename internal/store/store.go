@@ -59,6 +59,7 @@ type Config struct {
 	Language     string  `json:"language"` // "de", "en", or "" to follow Windows
 	ClientName   string  `json:"clientName"`
 	ImmichServer string  `json:"immichServer"` // origin, e.g. https://photos.example.lan
+	Magick       string  `json:"magick"`       // magick.exe; empty sends Immich's preview as it is
 	Frames       []Frame `json:"frames"`
 }
 

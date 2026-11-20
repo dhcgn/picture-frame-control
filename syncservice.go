@@ -7,6 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif" // sizes for imageSize
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"slices"
@@ -86,6 +90,7 @@ type FramePlan struct {
 
 type prepared struct {
 	frame     store.Frame
+	wanted    []syncplan.Asset // what belongs on the frame, newest first, within the limit
 	plan      syncplan.Plan
 	manifest  *syncplan.Manifest
 	skipped   int
@@ -151,6 +156,7 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	if p.manifest, err = syncplan.Load(s.manifestPath(id)); err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("Sync-Stand nicht lesbar", "Sync record unreadable"), err)
 	}
+	p.wanted = wanted
 	p.plan = syncplan.Compute(wanted, p.manifest.Entries, onFrame)
 	return p, nil
 }
@@ -249,10 +255,12 @@ func (s *SyncService) Preview(ctx context.Context, frameIDs []string) []FramePla
 }
 
 // RunFrame is one frame to sync, with the foreign photos the user agreed to
-// delete.
+// delete. Force replaces every photo this app sent, even unchanged ones, so
+// they are prepared afresh with the current settings.
 type RunFrame struct {
 	FrameID       string   `json:"frameId"`
 	DeleteForeign []string `json:"deleteForeign"`
+	Force         bool     `json:"force"`
 }
 
 // FrameResult is what a sync did on one frame.
@@ -317,6 +325,16 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		return res
 	}
 	m := p.manifest
+	if rf.Force {
+		// Without "manage" the old copies would stay next to the new ones.
+		if !p.canManage {
+			res.Error = i18n.T("Alles neu senden braucht die Berechtigung „Verwalten“", "Resending everything needs the \"manage\" permission")
+			return res
+		}
+		s.log(id, "info", i18n.T("Alles neu senden: %d Bilder dieser App werden ersetzt", "Resending everything: %d photos from this app are replaced"), len(p.plan.Keep))
+		p.plan.Delete = append(p.plan.Delete, p.plan.Keep...)
+		p.plan.Keep, p.plan.Send = nil, p.wanted
+	}
 	s.log(id, "info", i18n.T("%s: %d bleiben, %d senden, %d löschen", "%s: %d stay, %d to send, %d to delete"),
 		p.frame.DisplayName(), len(p.plan.Keep), len(p.plan.Send), len(p.plan.Delete))
 
@@ -360,6 +378,11 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		res.Error = err.Error()
 		return res
 	}
+	if len(p.plan.Send) > 0 {
+		if w, h, _, ok := s.shrinkTo(p.frame); ok {
+			s.log(id, "info", i18n.T("ImageMagick verkleinert die Bilder auf %d×%d (%s)", "ImageMagick shrinks the photos to %d×%d (%s)"), w, h, strings.ToUpper(shrinkFormat))
+		}
+	}
 	var sent []syncplan.Entry
 	for i, a := range p.plan.Send {
 		if ctx.Err() != nil {
@@ -368,10 +391,10 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 			break
 		}
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "send", Done: i, Total: len(p.plan.Send), Item: a.Name})
-		path, variant, size, err := s.mediaFile(ctx, c, a)
+		path, variant, size, err := s.mediaFile(ctx, c, a, p.frame)
 		if err != nil {
 			res.Failed++
-			s.log(id, "error", i18n.T("%s: Vorschau aus Immich nicht geladen: %v", "%s: could not load the preview from Immich: %v"), a.Name, err)
+			s.log(id, "error", i18n.T("%s: Bild aus Immich nicht geladen: %v", "%s: could not load the photo from Immich: %v"), a.Name, err)
 			continue
 		}
 		var mediaID int64
@@ -458,27 +481,119 @@ func (s *SyncService) reconcile(ctx context.Context, id string, m *syncplan.Mani
 		"ID check: %d found under the id sent, %d by capture date, %d not found"), direct, matched, missing)
 }
 
-// mediaFile returns a file ready to send for the asset: Immich's preview,
-// kept in the cache so frames with the same settings share it.
-func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset) (path, variant string, size int, err error) {
-	dir := filepath.Join(s.cacheDir, "media")
-	base := a.ID + "_" + strings.NewReplacer("/", "_", "+", "-", "=", "").Replace(a.Checksum) + "_preview"
-	if hit, _ := filepath.Glob(filepath.Join(dir, base+".*")); len(hit) > 0 {
-		st, err := os.Stat(hit[0])
-		if err == nil {
-			return hit[0], "preview-" + strings.TrimPrefix(filepath.Ext(hit[0]), "."), int(st.Size()), nil
-		}
+// shrinkTo is the screen ImageMagick shrinks photos for on this frame and the
+// variant that makes, or ok false when photos go as Immich's preview: without
+// ImageMagick, or before the frame reported its screen.
+func (s *SyncService) shrinkTo(f store.Frame) (w, h int, variant string, ok bool) {
+	w, h = screenOf(f)
+	if s.store.Config().Magick == "" || w == 0 || h == 0 {
+		return 0, 0, "", false
 	}
-	data, ext, err := c.Preview(ctx, a.ID)
+	mode := "cover"
+	if f.Scale == "fit" {
+		mode = "fit"
+	}
+	return w, h, fmt.Sprintf("%s-%dx%d-%s-q%d", shrinkFormat, w, h, mode, shrinkQuality), true
+}
+
+// screenOf is the frame's screen as it hangs: a frame mounted portrait swaps
+// width and height. Zero until the frame has reported it.
+func screenOf(f store.Frame) (w, h int) {
+	if f.Rotate {
+		return f.Screen.H, f.Screen.W
+	}
+	return f.Screen.W, f.Screen.H
+}
+
+// covers reports whether a w×h photo fills a sw×sh screen without being
+// enlarged: in both directions where the frame crops, in one where it fits.
+func covers(w, h, sw, sh int, fit bool) bool {
+	if fit {
+		return w >= sw || h >= sh
+	}
+	return w >= sw && h >= sh
+}
+
+// imageSize reads the size of a JPEG, PNG or GIF from its header.
+func imageSize(path string) (w, h int, ok bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	defer f.Close()
+	c, _, err := image.DecodeConfig(f)
+	return c.Width, c.Height, err == nil
+}
+
+// mediaFile returns a file ready to send for the asset: the smallest rendition
+// Immich has that fills the frame's screen, shrunk to that screen when
+// ImageMagick is set up. All of it stays in the cache, so frames with the same
+// screen and scaling share it.
+// ponytail: the cache only grows; a "clear cache" button (E-04) when it gets big
+func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset, f store.Frame) (path, variant string, size int, err error) {
+	dir := filepath.Join(s.cacheDir, "media")
+	base := filepath.Join(dir, a.ID+"_"+strings.NewReplacer("/", "_", "+", "-", "=", "").Replace(a.Checksum))
+	w, h, shrunk, ok := s.shrinkTo(f)
+	out := base + "_" + shrunk + "." + shrinkFormat
+	if st, err := os.Stat(out); ok && err == nil {
+		return out, shrunk, int(st.Size()), nil
+	}
+
+	path, variant, size, err = s.source(ctx, c, a.ID, base, f)
+	if err != nil || !ok {
+		return path, variant, size, err
+	}
+	if err := shrink(ctx, s.store.Config().Magick, path, out, w, h, f.Scale == "fit"); err != nil {
+		if ctx.Err() != nil {
+			return "", "", 0, ctx.Err()
+		}
+		s.log(f.ID, "warn", i18n.T("%s: ImageMagick fehlgeschlagen, sende das Bild aus Immich unverändert: %v",
+			"%s: ImageMagick failed, sending the photo from Immich as it is: %v"), a.Name, err)
+		return path, variant, size, nil
+	}
+	st, err := os.Stat(out)
 	if err != nil {
 		return "", "", 0, err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	return out, shrunk, int(st.Size()), nil
+}
+
+// source returns the smallest rendition from Immich that fills the frame's
+// screen without the frame enlarging it: the preview, or the full-size image
+// where the preview falls short -- a portrait photo on a landscape Full HD
+// frame, say, which the preview's 1440 pixels cannot cover. A preview whose
+// size cannot be read counts as falling short.
+func (s *SyncService) source(ctx context.Context, c *immich.Client, id, base string, f store.Frame) (path, variant string, size int, err error) {
+	path, variant, size, err = s.fetch(ctx, c, id, base, "preview")
+	if err != nil {
 		return "", "", 0, err
 	}
-	path = filepath.Join(dir, base+"."+ext)
+	sw, sh := screenOf(f)
+	if w, h, ok := imageSize(path); sw == 0 || ok && covers(w, h, sw, sh, f.Scale == "fit") {
+		return path, variant, size, nil
+	}
+	return s.fetch(ctx, c, id, base, "fullsize")
+}
+
+// fetch returns a rendition of the asset ("preview" or "fullsize") from the
+// cache, downloading it the first time.
+func (s *SyncService) fetch(ctx context.Context, c *immich.Client, id, base, rendition string) (path, variant string, size int, err error) {
+	base += "_" + rendition
+	if hit, _ := filepath.Glob(base + ".*"); len(hit) > 0 {
+		if st, err := os.Stat(hit[0]); err == nil {
+			return hit[0], rendition + "-" + strings.TrimPrefix(filepath.Ext(hit[0]), "."), int(st.Size()), nil
+		}
+	}
+	data, ext, err := c.Thumbnail(ctx, id, rendition)
+	if err != nil {
+		return "", "", 0, err
+	}
+	if err := os.MkdirAll(filepath.Dir(base), 0o700); err != nil {
+		return "", "", 0, err
+	}
+	path = base + "." + ext
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return "", "", 0, err
 	}
-	return path, "preview-" + cmp.Or(ext, "jpg"), len(data), nil
+	return path, rendition + "-" + cmp.Or(ext, "jpg"), len(data), nil
 }

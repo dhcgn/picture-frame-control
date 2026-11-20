@@ -142,14 +142,18 @@ Cache: `%LOCALAPPDATA%\picture-frame-control\cache\`
 
 | Fall | Quelle | Verarbeitung | Gesendet |
 |---|---|---|---|
-| Bild, ohne magick | `thumbnail?size=preview` (JPEG ~1440 px) | keine | `.jpg`, Scale-Type laut Frame |
-| Bild, mit magick | `thumbnail?size=fullsize`, bei 404 `preview` | crop: `magick in -auto-orient -resize WxH^ -gravity center -extent WxH -quality Q out.webp` · fit: `magick in -auto-orient -resize WxH -quality Q out.webp` | `.webp` |
+| Bild, ohne magick | `thumbnail?size=preview` (kurze Seite 1440 px), wenn sie den Bildschirm füllt, sonst `size=fullsize` | keine | `.jpg`, Scale-Type laut Frame |
+| Bild, mit magick | dieselbe Quelle aus dem Cache | crop: `magick in -auto-orient -resize WxH^> -quality 82 out.webp` · fit: `magick in -auto-orient -resize WxH> -quality 82 out.webp`. W×H = Screen, bei Hochkant-Montage getauscht. Schlägt magick fehl: Quelle unverändert senden und warnen | `.webp` |
 | Video, mit ffmpeg | `video/playback` | `ffmpeg -i in -vf scale=W:H:force_original_aspect_ratio=decrease -c:v libx264 -crf 28 -preset veryfast -c:a aac -b:a 96k -movflags +faststart out.mp4` mit W×H = min(Screen, maxVideo) | `.mp4` + Preview-JPEG als Thumbnail |
 | Video, ohne ffmpeg | – | übersprungen | – |
 
-- **Tools:** Pfade für `magick.exe` und `ffmpeg.exe` stehen in der Config. Ein "Suchen"-Button füllt sie per `exec.LookPath`. Die Version wird über `-version` angezeigt.
+- **Nie unter der nativen Auflösung:** Der Frame soll kein Bild hochskalieren müssen. Die Preview genügt, wenn sie den Bildschirm füllt: beim Zuschneiden in beiden Richtungen (`w ≥ W` und `h ≥ H`), beim Einpassen in einer. Sonst lädt die App `size=fullsize`. Immich liefert dafür bei JPEG, PNG und WebP das Original, sonst ein Fullsize-JPEG, falls aktiviert (Bildeinstellungen in Immich), und sonst wieder die Preview. Beispiel Full-HD-Frame (1920×1080) beim Zuschneiden: Querformat 4:3 kommt aus der Preview (1920×1440), Hochformat aus Fullsize, weil 1440 px Breite nicht reichen. Ist das Original selbst kleiner als der Bildschirm, geht es unvergrößert.
+- **Drehen:** Die Rechnung gilt für die Ausrichtung in den Frame-Einstellungen („hochkant montiert“). Wird ein Frame gedreht, ohne dass die Einstellung folgt, kann ein Bild darunter liegen.
+- **Warum nicht zuschneiden:** `^>` verkleinert nur so weit, dass das Bild den Bildschirm noch ganz abdeckt, und vergrößert nie. Den Zuschnitt macht weiter der Frame um seinen Mittelpunkt. So bleibt das Bild auch bei einem gedrehten Frame oder einem späteren Wechsel auf „Einpassen“ ganz.
+- **Qualität** ist fest 82 (`shrinkFormat`/`shrinkQuality` in `magick.go`). Zeigt ein Frame kein WebP (O-3), genügt dort `jpg`.
+- **Tools:** Pfade für `magick.exe` und `ffmpeg.exe` stehen in der Config. „Suchen“ nimmt `exec.LookPath`, sonst `%ProgramFiles%\ImageMagick-*\magick.exe`; „Auswählen…“ öffnet einen Dateidialog. Die Version wird über `-version` angezeigt.
 - **Cache-Schlüssel:** `assetId_checksum_variant.ext`. Frames mit gleicher Auflösung und gleichem Modus teilen sich die Datei.
-- **Varianten-Wechsel** (z. B. magick neu installiert) löst **kein** automatisches Neusenden aus. Dafür gibt es je Frame den Button "Neu aufbereiten". Sonst würde eine Einstellungsänderung den ganzen Frame neu befüllen.
+- **Varianten-Wechsel** (z. B. magick neu installiert) löst **kein** automatisches Neusenden aus. Sonst würde eine Einstellungsänderung den ganzen Frame neu befüllen. Dafür gibt es je Frame in der Sync-Ansicht **„Alles neu senden (Force Sync)“**: Alle Bilder dieser App werden gelöscht und nach den aktuellen Einstellungen neu gesendet. Fremde Bilder bleiben. Das braucht die Berechtigung „Verwalten“, sonst lägen alte und neue Kopien nebeneinander.
 
 ## 8. Sync-Algorithmus
 
@@ -218,7 +222,7 @@ Events Go → UI: `sync:progress {frame, phase, done, total, asset}` · `sync:lo
 | M1 ✓ | Frame-Verwaltung F-01..F-13, store mit DPAPI, unframeo-Import | Frames per UI steuerbar (2026-11-20, lesend am echten Frame geprüft) |
 | M2 ✓ | Immich-Client, Alben/Tags, Zuordnungsmatrix | Quellen je Frame wählbar (2026-11-20, gegen Immich 3.4.0 geprüft) |
 | M3 ✓ | Sync für Bilder ohne magick, syncplan mit Test, Live-Test O-2 | Spiegeln funktioniert gegen Fake-Frame und Fake-Immich; Vorschau gegen echte Daten geprüft. Echter Sync und O-2 stehen aus (Protokollzeile „ID-Abgleich“) |
-| M4 | magick/WebP, Tool-Erkennung, Cache, Live-Test O-3 | Kleinere Dateien |
+| M4 ✓ | magick/WebP, Tool-Erkennung, Cache, Live-Test O-3 | Kleinere Dateien (1920×1440-JPEG → 1280×960-WebP). Neu senden per Force Sync. Offen: Live-Test O-3 |
 | M5 | Spike Video-Protokoll, danach ffmpeg-Pipeline | Videos auf dem Frame |
 
 ## 13. Tests

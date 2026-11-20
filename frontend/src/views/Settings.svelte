@@ -32,6 +32,19 @@
     }
   }
 
+  let magickBusy = $state(false)
+  async function magick(change: () => Promise<void>) {
+    magickBusy = true
+    try {
+      await change()
+      await load()
+    } catch (e) {
+      notify(errText(e), 'error')
+    } finally {
+      magickBusy = false
+    }
+  }
+
   async function lookForUpdate() {
     checking = true
     await checkUpdate()
@@ -132,6 +145,34 @@
 </form>
 
 {#if s}
+  <h2 class="group-title">{t('Bilder verkleinern', 'Shrinking photos')}</h2>
+  <div class="form panel">
+    <div class="row">
+      <span class="k">ImageMagick<small>{t('Optional. Bringt jedes Bild auf die Auflösung des Frames, als WebP', 'Optional. Brings every photo down to the frame’s resolution, as WebP')}</small></span>
+      <div>
+        {#if s.magick}
+          <div class="mono path">{s.magick}</div>
+          {#if s.magickVersion}
+            <p class="hint ok">{t(`ImageMagick ${s.magickVersion}. Neue Bilder gehen verkleinert auf die Frames.`, `ImageMagick ${s.magickVersion}. New photos go to the frames shrunk.`)}</p>
+          {:else}
+            <p class="hint warn">{s.magickError} {t('Bis das behoben ist, gehen die Bilder als Vorschau aus Immich.', 'Until that is fixed, photos go as Immich’s preview.')}</p>
+          {/if}
+        {:else}
+          <p class="muted">{t('Nicht eingerichtet: Die Frames bekommen die Vorschau aus Immich unverändert.', 'Not set up: frames get Immich’s preview as it is.')}</p>
+        {/if}
+        <div class="buttons">
+          <button class="btn" disabled={magickBusy} onclick={() => magick(SettingsService.FindMagick)}>{t('Suchen', 'Find')}</button>
+          <button class="btn" disabled={magickBusy} onclick={() => magick(SettingsService.ChooseMagick)}>{t('Auswählen…', 'Choose…')}</button>
+          {#if s.magick}
+            <button class="btn" disabled={magickBusy} onclick={() => magick(SettingsService.ClearMagick)}>{t('Nicht mehr nutzen', 'Stop using it')}</button>
+          {/if}
+        </div>
+        <p class="hint">{t('Gilt für Bilder, die ab jetzt gesendet werden. Was schon auf einem Frame ist, bleibt, wie es ist. Der Frame schneidet weiterhin selbst zu.',
+          'Applies to photos sent from now on. What is already on a frame stays as it is. The frame still does its own cropping.')}</p>
+      </div>
+    </div>
+  </div>
+
   <h2 class="group-title">{t('Identität', 'Identity')}</h2>
   <div class="form panel">
     <form class="row" onsubmit={saveName}>
@@ -189,7 +230,7 @@
 {/if}
 
 <style>
-  .key { word-break: break-all; margin-bottom: 10px; }
+  .key, .path { word-break: break-all; margin-bottom: 10px; }
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   .row input { margin-right: 6px; }
   .link { all: unset; cursor: pointer; text-decoration: underline; }

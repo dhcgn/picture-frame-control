@@ -73,8 +73,8 @@ Windows-Desktop-App (Go + Wails v3), die
 
 | ID | Anforderung |
 |---|---|
-| M-01 | Bilder ohne ImageMagick: Immich-Preview (JPEG) unverändert senden |
-| M-02 | Bilder mit ImageMagick (`magick.exe`, Pfad in Config): Original oder Fullsize laden und auf native Frame-Auflösung als WebP konvertieren (Zuschnitt wie Frame: Center-Crop) |
+| M-01 | Bilder ohne ImageMagick: Immich-Preview (JPEG) unverändert senden. Füllt sie den Bildschirm nicht (z. B. Hochformat auf Full HD), das Fullsize-Bild. Kein Bild soll unter der nativen Auflösung des Frames ankommen |
+| M-02 | Bilder mit ImageMagick (`magick.exe`, Pfad in Config): die Immich-Preview auf die native Frame-Auflösung verkleinern, als WebP. Das Bild deckt den Bildschirm ab („Zuschneiden“) oder passt hinein („Einpassen“). Den Zuschnitt selbst macht der Frame |
 | M-03 | Videos mit ffmpeg (Pfad in Config): auf native Frame-Auflösung konvertieren |
 | M-04 | Videos ohne ffmpeg: überspringen und in der Vorschau als "übersprungen" ausweisen |
 | M-05 | Tool-Erkennung in den Einstellungen: Pfad prüfen, Version anzeigen |
@@ -86,7 +86,7 @@ Windows-Desktop-App (Go + Wails v3), die
 |---|---|
 | E-01 | Immich: URL, API-Key |
 | E-02 | Tools: Pfade zu magick.exe und ffmpeg.exe |
-| E-03 | WebP-Qualität, Video-Bitrate/CRF |
+| E-03 | WebP-Qualität, Video-Bitrate/CRF (vorerst fest: WebP-Qualität 82) |
 | E-04 | Cache-Verzeichnis und Cache leeren |
 
 ## 4. Nicht-funktionale Anforderungen

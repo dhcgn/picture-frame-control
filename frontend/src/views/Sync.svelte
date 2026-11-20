@@ -9,10 +9,12 @@
   let { onassign }: { onassign: () => void } = $props()
 
   const sync = app.sync
-  // Per frame: take part in the next run, and what to do with foreign photos.
+  // Per frame: take part in the next run, what to do with foreign photos, and
+  // whether to resend everything this app sent (force sync).
   let include = $state<Record<string, boolean>>({})
   let foreign = $state<Record<string, 'keep' | 'all' | 'pick'>>({})
   let picked = $state<Record<string, SvelteSet<string>>>({})
+  let force = $state<Record<string, boolean>>({})
 
   onMount(() => {
     if (!sync.running && app.immich.state !== 'none') planSync()
@@ -26,6 +28,7 @@
       include[p.frameId] ??= !p.error
       foreign[p.frameId] ??= 'keep'
       picked[p.frameId] ??= new SvelteSet()
+      force[p.frameId] ??= false
     }
   })
 
@@ -33,22 +36,28 @@
   const chosen = $derived((sync.plans ?? []).filter((p) => !p.error && include[p.frameId]))
   const foreignToDelete = (p: FramePlan) =>
     foreign[p.frameId] === 'all' ? (p.foreign ?? []) : foreign[p.frameId] === 'pick' ? [...(picked[p.frameId] ?? [])] : []
+  // A forced frame resends what would stay, after deleting the old copies.
+  const forced = (p: FramePlan) => force[p.frameId] && p.canDelete
+  const keepOf = (p: FramePlan) => (forced(p) ? 0 : p.keep)
+  const sendOf = (p: FramePlan) => p.send + (forced(p) ? p.keep : 0)
+  const delOf = (p: FramePlan) => (p.canDelete ? p.delete + (forced(p) ? p.keep : 0) + foreignToDelete(p).length : 0)
   const totals = $derived(
-    chosen.reduce(
-      (sum, p) => ({ send: sum.send + p.send, del: sum.del + (p.canDelete ? p.delete + foreignToDelete(p).length : 0) }),
-      { send: 0, del: 0 },
-    ),
+    chosen.reduce((sum, p) => ({ send: sum.send + sendOf(p), del: sum.del + delOf(p) }), { send: 0, del: 0 }),
   )
 
   async function start() {
-    if (totals.del > 0 && !confirm(t(`${photos(totals.del)} werden endgültig von den Frames gelöscht. Sync starten?`,
-      `${photos(totals.del)} will be deleted from the frames for good. Start the sync?`))) return
+    const resent = chosen.reduce((n, p) => n + (forced(p) ? p.keep : 0), 0)
+    if (totals.del > 0 && !confirm(resent
+      ? t(`${photos(totals.del)} werden von den Frames gelöscht, ${n(resent)} davon gleich wieder neu gesendet. Sync starten?`,
+        `${photos(totals.del)} will be deleted from the frames, ${n(resent)} of them sent again right away. Start the sync?`)
+      : t(`${photos(totals.del)} werden endgültig von den Frames gelöscht. Sync starten?`,
+        `${photos(totals.del)} will be deleted from the frames for good. Start the sync?`))) return
     sync.running = true
     sync.results = null
     sync.log = []
     sync.progress = {}
     try {
-      sync.results = (await SyncService.Run(chosen.map((p) => ({ frameId: p.frameId, deleteForeign: foreignToDelete(p) })))) ?? []
+      sync.results = (await SyncService.Run(chosen.map((p) => ({ frameId: p.frameId, deleteForeign: foreignToDelete(p), force: forced(p) })))) ?? []
       const sent = sync.results.reduce((n, r) => n + r.sent, 0)
       const failed = sync.results.reduce((n, r) => n + r.failed + (r.error ? 1 : 0), 0)
       notify(failed
@@ -60,6 +69,7 @@
       sync.running = false
       for (const p of chosen) probe(p.frameId)
       for (const id of Object.keys(foreign)) foreign[id] = 'keep'
+      for (const id of Object.keys(force)) force[id] = false
       planSync()
     }
   }
@@ -112,25 +122,34 @@
               {#if prog.phase === 'send'}<div class="mono">{t(`${prog.done + 1} von ${prog.total}`, `${prog.done + 1} of ${prog.total}`)} · {prog.item}</div>{/if}
             </div>
           {:else}
-            {@const del = p.canDelete ? p.delete + fd.length : 0}
+            {@const del = delOf(p)}
+            {@const send = sendOf(p)}
             <div class="bar">
-              <span style:flex={p.keep} style:background="var(--keep)"></span>
-              <span style:flex={p.send} style:background="var(--send)"></span>
+              <span style:flex={keepOf(p)} style:background="var(--keep)"></span>
+              <span style:flex={send} style:background="var(--send)"></span>
               <span style:flex={del} style:background="var(--del)"></span>
               <span style:flex={(p.foreign?.length ?? 0) - fd.length} style:background="var(--foreign)"></span>
             </div>
             <div class="facts">
-              <span><i style:background="var(--keep)"></i>{t('Bleibt', 'Stays')} <b>{n(p.keep)}</b></span>
-              <span><i style:background="var(--send)"></i>{t('Senden', 'To send')} <b>{n(p.send)}</b></span>
-              <span><i style:background="var(--del)"></i>{t('Löschen', 'To delete')} <b>{n(del)}</b>{#if p.delete && p.canDelete}<span class="muted"> {t('nicht mehr ausgewählt oder geändert', 'no longer selected, or changed')}</span>{/if}</span>
+              <span><i style:background="var(--keep)"></i>{t('Bleibt', 'Stays')} <b>{n(keepOf(p))}</b></span>
+              <span><i style:background="var(--send)"></i>{t('Senden', 'To send')} <b>{n(send)}</b></span>
+              <span><i style:background="var(--del)"></i>{t('Löschen', 'To delete')} <b>{n(del)}</b>{#if forced(p)}<span class="muted"> {t('alle Bilder dieser App, sie kommen neu', 'every photo from this app; they come again')}</span>{:else if p.delete && p.canDelete}<span class="muted"> {t('nicht mehr ausgewählt oder geändert', 'no longer selected, or changed')}</span>{/if}</span>
               {#if p.foreign?.length}<span><i style:background="var(--foreign)"></i>{t('Fremd', 'Foreign')} <b>{n(p.foreign.length)}</b></span>{/if}
               {#if p.skipped}<span><i style:background="var(--skip)"></i>{t('Übersprungen', 'Skipped')} <b>{n(p.skipped)}</b><span class="muted"> Videos</span></span>{/if}
               {#if p.overLimit}<span class="warn">{t('Über dem Limit', 'Over the limit')} <b>{n(p.overLimit)}</b><span class="muted"> {t('ältere werden nicht gesendet', 'older ones are not sent')}</span></span>{/if}
             </div>
             {#if !f.sources.albums?.length && !f.sources.tags?.length}
               <div class="note">{t('Diesem Frame sind keine Alben oder Tags zugeordnet.', 'No albums or tags are assigned to this frame.')} <button class="link" onclick={onassign}>{t('Zuordnen', 'Assign')}</button></div>
-            {:else if p.send === 0 && del === 0}
+            {:else if send === 0 && del === 0}
               <div class="note ok">{t('Alles aktuell. Auf diesem Frame gibt es nichts zu senden oder zu löschen.', 'All up to date. There is nothing to send to or delete from this frame.')}</div>
+            {/if}
+            {#if p.keep}
+              <label class="force" title={p.canDelete ? '' : t('Braucht die Berechtigung „Verwalten“', 'Needs the “manage” permission')}>
+                <input type="checkbox" bind:checked={force[p.frameId]} disabled={!p.canDelete} />
+                <span><b>{t('Alles neu senden (Force Sync)', 'Resend everything (force sync)')}</b>
+                  <span class="muted">{t('Löscht die Bilder dieser App von diesem Frame und sendet sie neu, aufbereitet nach den aktuellen Einstellungen. Fremde Bilder bleiben.',
+                    'Deletes the photos from this app on this frame and sends them again, prepared with the current settings. Foreign photos stay.')}</span></span>
+              </label>
             {/if}
             {#if p.delete && !p.canDelete}
               <div class="note warn">{t(`${photos(p.delete)} müssten gelöscht werden, aber der App fehlt die Berechtigung „Verwalten“.`,
@@ -210,6 +229,9 @@
   .facts b { font-family: var(--mono); font-weight: 500; }
   .facts i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   .note { grid-column: 2 / 4; font-size: 14px; padding: 10px 12px; border-radius: 6px; background: var(--wall); }
+  .force { grid-column: 2 / 4; display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+  .force input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--del); flex: none; }
+  .force .muted { display: block; }
   .decide { grid-column: 2 / 4; border: 1px solid var(--foreign); border-radius: 8px; padding: 14px 16px; }
   .decide h4 { margin: 0 0 4px; font-size: 15px; }
   .strip { display: flex; gap: 4px; margin: 12px 0; flex-wrap: wrap; max-height: 180px; overflow: auto; }
