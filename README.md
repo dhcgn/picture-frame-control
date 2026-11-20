@@ -13,6 +13,11 @@ A Windows app that manages Frameo digital photo frames and mirrors albums and ta
 
 The user interface is in English and German; by default it follows the Windows display language.
 
+<p>
+  <img src="docs/Frames.png" alt="Frames page: a paired frame with its location, owner, resolution and number of photos" width="49%">
+  <img src="docs/Assignments.png" alt="Assignment page: an Immich tag ticked for a frame, with the resulting number of photos" width="49%">
+</p>
+
 ## Installation
 
 1. Download the latest `picture-frame-control_<version>_windows_amd64.exe` from [Releases](https://github.com/dhcgn/picture-frame-control/releases/latest) and run it. There is no installer.
