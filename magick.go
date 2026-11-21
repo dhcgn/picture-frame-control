@@ -20,7 +20,7 @@ import (
 )
 
 // tool is an external program the app can use when it is set up: ImageMagick
-// for photos (M-02), ffmpeg for videos (M-03).
+// for photos, ffmpeg for videos.
 type tool struct {
 	label  string                      // for messages
 	exe    string                      // its name on the PATH
@@ -78,10 +78,10 @@ func (t tool) find() string {
 	return ""
 }
 
-// What ImageMagick makes of a photo (M-02). magick picks the format by the
-// file extension, so "jpg" here is all it takes if a frame cannot show WebP
-// (open question O-3).
-// ponytail: fixed quality; a setting (E-03) when someone asks for one
+// What ImageMagick makes of a photo. Whether frames show WebP is still to be
+// seen on a real one; magick picks the format by the file extension, so "jpg"
+// here is all it takes if not.
+// ponytail: fixed quality; a setting when someone asks for one
 const (
 	shrinkFormat  = "webp"
 	shrinkQuality = 82

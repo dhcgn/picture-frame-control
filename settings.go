@@ -18,7 +18,7 @@ import (
 	"github.com/dhcgn/picture-frame-control/internal/store"
 )
 
-// SettingsService covers the app-wide settings (E-01..E-04, F-11, F-12) and
+// SettingsService covers the app-wide settings, the identity and
 // the language.
 type SettingsService struct {
 	store  *store.Store
@@ -94,7 +94,7 @@ func (s *SettingsService) SetLanguage(choice string) (string, error) {
 }
 
 // FindTool looks for ImageMagick ("magick") or ffmpeg ("ffmpeg") and, when
-// found, uses it from now on (M-05).
+// found, uses it from now on.
 func (s *SettingsService) FindTool(id string) error {
 	t, ok := tools[id]
 	if !ok {

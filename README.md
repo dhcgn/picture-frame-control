@@ -44,7 +44,7 @@ go test ./...   # tests; frame, grid and Immich run as fakes
 
 Live tests against a real frame paired with unframeo: `go test -tags live ./internal/frameo`
 
-Design documents (German): [requirements](docs/anforderungen.md) · [implementation concept](docs/konzept.md) · [mockups](mockups/index.html)
+HTML mockups of the screens (German): [mockups](mockups/index.html)
 
 ## Releasing
 

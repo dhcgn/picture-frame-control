@@ -27,7 +27,7 @@ import (
 	"github.com/dhcgn/picture-frame-control/internal/syncplan"
 )
 
-// FrameService manages paired frames and what is on them (F-01..F-13).
+// FrameService manages paired frames and what is on them.
 //
 // Talking to a frame starts with mDNS discovery and an encrypted handshake,
 // which takes seconds, so connections are kept open per frame and reused,

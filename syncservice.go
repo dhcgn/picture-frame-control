@@ -31,7 +31,7 @@ import (
 // It is not in the app's protobuf enum; it has been seen in the wild.
 const errFrameFull pb.Error_Code = 12
 
-// SyncService mirrors each frame's albums and tags onto it (S-02..S-11).
+// SyncService mirrors each frame's albums and tags onto it.
 type SyncService struct {
 	store    *store.Store
 	frames   *FrameService
@@ -457,9 +457,9 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 }
 
 // reconcile checks that the photos just sent are listed on the frame under
-// the ids this client gave them. Where a frame files them under its own ids,
-// they are matched by the capture date this client set (open question O-2 in
-// docs/anforderungen.md).
+// the ids this client gave them, as a real frame did for all 131 photos of a
+// first sync. Should a frame file them under its own ids, they are matched by
+// the capture date this client set.
 func (s *SyncService) reconcile(ctx context.Context, id string, m *syncplan.Manifest, sent []syncplan.Entry) {
 	var items []*pb.MediaMetaData
 	if _, err := s.frames.do(ctx, id, true, func(c *frameo.Client) (err error) {
@@ -558,7 +558,7 @@ func imageSize(path string) (w, h int, ok bool) {
 // Without ImageMagick it is the smallest rendition that fills the screen.
 // What is sent stays in the cache, so frames with the same screen and scaling
 // share it.
-// ponytail: the cache only grows; a "clear cache" button (E-04) when it gets big
+// ponytail: the cache only grows; a "clear cache" button when it gets big
 func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset, f store.Frame) (path, variant string, size int, err error) {
 	base := s.cacheBase(a)
 	w, h, shrunk, ok := s.shrinkTo(f)

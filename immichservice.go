@@ -17,7 +17,7 @@ import (
 )
 
 // ImmichService connects to Immich and lets the user choose which albums and
-// tags go onto which frame (I-01..I-06, S-01).
+// tags go onto which frame.
 type ImmichService struct {
 	store *store.Store
 }
