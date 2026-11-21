@@ -398,19 +398,25 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 			break
 		}
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "send", Done: i, Total: len(p.plan.Send), Item: a.Name})
-		fit := p.frame.Scale == "fit"
+		var fit bool
 		var sendTo func(*frameo.Client) (int64, error)
 		var variant string
 		var size int
 		if a.Video {
 			var video, thumb string
 			video, thumb, variant, size, err = s.videoFile(ctx, c, a, p.frame)
+			if err == nil {
+				fit = s.fitsFile(ctx, p.frame, thumb) // the still has the video's size
+			}
 			sendTo = func(fc *frameo.Client) (int64, error) {
 				return fc.SendVideo(ctx, frameo.Video{Path: video, Thumb: thumb, Taken: a.Taken, Fit: fit, Caption: a.Caption})
 			}
 		} else {
 			var path string
 			path, variant, size, err = s.mediaFile(ctx, c, a, p.frame)
+			if err == nil {
+				fit = s.fitsFile(ctx, p.frame, path)
+			}
 			sendTo = func(fc *frameo.Client) (int64, error) {
 				return fc.SendPhoto(ctx, frameo.Photo{Path: path, Taken: a.Taken, Fit: fit, Caption: a.Caption})
 			}
@@ -529,6 +535,43 @@ func screenOf(f store.Frame) (w, h int) {
 		return f.Screen.H, f.Screen.W
 	}
 	return f.Screen.W, f.Screen.H
+}
+
+// smartMarginPercent is how much longer than its short side a photo's long
+// side must be to count as landscape or portrait; closer to square than that,
+// cropping it to a wide screen throws away too much.
+const smartMarginPercent = 10
+
+// fits reports whether the frame shows a w×h photo whole (Fit) rather than
+// cropped to fill the screen. The smart mode crops photos that match the
+// screen's orientation and fits the others; an unknown size or screen crops.
+func fits(f store.Frame, w, h int) bool {
+	switch f.Scale {
+	case "fit":
+		return true
+	case "smart":
+		sw, sh := screenOf(f)
+		if w == 0 || h == 0 || sw == 0 || sh == 0 {
+			return false
+		}
+		matches := (w > h) == (sw >= sh) && max(w, h)*100 >= min(w, h)*(100+smartMarginPercent)
+		return !matches
+	}
+	return false
+}
+
+// fitsFile decides the Fit flag for a prepared file. Only the flag depends on
+// the mode: the file is encoded as for crop. ImageMagick's output (WebP) is
+// sized by magick itself; it was shrunk in proportion, so its shape is the photo's.
+func (s *SyncService) fitsFile(ctx context.Context, f store.Frame, path string) bool {
+	if f.Scale != "smart" {
+		return f.Scale == "fit"
+	}
+	w, h, ok := imageSize(path)
+	if m := s.store.Config().Magick; !ok && m != "" {
+		w, h, _ = identify(ctx, m, path)
+	}
+	return fits(f, w, h)
 }
 
 // covers reports whether a w×h photo fills a sw×sh screen without being

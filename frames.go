@@ -321,7 +321,7 @@ func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame,
 		return store.Frame{}, fmt.Errorf(i18n.T("unbekannte Bildunterschrift %q", "unknown caption %q"), fs.Caption)
 	case fs.Limit < 0:
 		return store.Frame{}, errors.New(i18n.T("Das Limit darf nicht negativ sein", "The limit must not be negative"))
-	case fs.Scale != "crop" && fs.Scale != "fit":
+	case fs.Scale != "crop" && fs.Scale != "fit" && fs.Scale != "smart":
 		return store.Frame{}, fmt.Errorf(i18n.T("unbekannte Darstellung %q", "unknown display mode %q"), fs.Scale)
 	case fs.Mode != "auto" && fs.Mode != "local" && fs.Mode != "relay":
 		return store.Frame{}, fmt.Errorf(i18n.T("unbekannter Verbindungsweg %q", "unknown connection mode %q"), fs.Mode)

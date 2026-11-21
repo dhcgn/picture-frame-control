@@ -46,7 +46,7 @@ Made with invented frames, albums and drawn landscapes (see [Development](#devel
     <td><a href="docs/screenshots/frame-sources.png"><img src="docs/screenshots/frame-sources.png" alt="The albums and tags assigned to a frame"></a><br><b>Sources</b> of one frame and what they add up to.</td>
   </tr>
   <tr>
-    <td><a href="docs/screenshots/frame-settings.png"><img src="docs/screenshots/frame-settings.png" alt="Settings of one frame: name, caption, limit, display, orientation, connection, permissions"></a><br><b>Frame settings</b>: name, caption, limit, crop or fit, portrait mounting, connection, permissions.</td>
+    <td><a href="docs/screenshots/frame-settings.png"><img src="docs/screenshots/frame-settings.png" alt="Settings of one frame: name, caption, limit, display, orientation, connection, permissions"></a><br><b>Frame settings</b>: name, caption, limit, crop, fit or smart (fit portrait photos only), portrait mounting, connection, permissions.</td>
     <td><a href="docs/screenshots/assignment.png"><img src="docs/screenshots/assignment.png" alt="Matrix of albums and tags against frames, with the result per frame"></a><br><b>Assignment</b>: albums and tags against frames, many to many, with the result per frame.</td>
   </tr>
   <tr>

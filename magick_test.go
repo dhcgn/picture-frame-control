@@ -179,3 +179,61 @@ func TestMagickVersion(t *testing.T) {
 		t.Error("cmd.exe taken for ImageMagick")
 	}
 }
+
+// TestFits checks the smart rule: orientation relative to the screen, and the
+// 10 % margin that sends near-square photos whole (1.09 fits, 1.10 crops).
+func TestFits(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		frame store.Frame
+		w, h  int
+		want  bool
+	}{
+		{"landscape crops", frameOf(1920, 1080, "smart", false), 1600, 900, false},
+		{"portrait fits", frameOf(1920, 1080, "smart", false), 900, 1600, true},
+		{"square fits", frameOf(1920, 1080, "smart", false), 1000, 1000, true},
+		{"1.09 fits", frameOf(1920, 1080, "smart", false), 109, 100, true},
+		{"1.10 crops", frameOf(1920, 1080, "smart", false), 110, 100, false},
+		{"1.09 portrait fits", frameOf(1920, 1080, "smart", false), 100, 109, true},
+		{"upright mount: landscape fits", frameOf(1920, 1080, "smart", true), 1600, 900, true},
+		{"upright mount: portrait crops", frameOf(1920, 1080, "smart", true), 900, 1600, false},
+		{"size unknown crops", frameOf(1920, 1080, "smart", false), 0, 0, false},
+		{"screen unknown crops", store.Frame{Scale: "smart"}, 900, 1600, false},
+		{"crop never fits", frameOf(1920, 1080, "crop", false), 900, 1600, false},
+		{"fit always fits", frameOf(1920, 1080, "fit", false), 1600, 900, true},
+	} {
+		if got := fits(tc.frame, tc.w, tc.h); got != tc.want {
+			t.Errorf("%s: fits = %t, want %t", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestSmartEncodesLikeCrop checks that smart changes only the Fit flag: the
+// file ImageMagick makes is the one a crop frame gets, even for a portrait
+// photo that goes with Fit.
+func TestSmartEncodesLikeCrop(t *testing.T) {
+	magick := tools["magick"].find()
+	if magick == "" {
+		t.Skip("ImageMagick is not installed")
+	}
+	s, _ := fakeRenditions(t, magick)
+	c, err := s.immich.client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	for asset, wantFit := range map[string]bool{"land": false, "port": true} {
+		smart, crop := frameOf(1920, 1080, "smart", false), frameOf(1920, 1080, "crop", false)
+		path, variant, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: asset, Checksum: "c"}, smart)
+		if err != nil || variant != "webp-1920x1080-cover-q82" {
+			t.Fatalf("%s smart: %q, %v; want the crop file", asset, variant, err)
+		}
+		if _, v, _, _ := s.mediaFile(ctx, c, syncplan.Asset{ID: asset, Checksum: "c"}, crop); v != variant {
+			t.Errorf("%s: crop got %q, smart %q", asset, v, variant)
+		}
+		if got := s.fitsFile(ctx, smart, path); got != wantFit {
+			t.Errorf("%s: fit %t, want %t", asset, got, wantFit)
+		}
+	}
+}

@@ -48,7 +48,7 @@ type Frame struct {
 	Screen    Size      `json:"screen"`
 	MaxVideo  Size      `json:"maxVideo"`
 	Rotate    bool      `json:"rotate"` // mounted portrait: swap width and height
-	Scale     string    `json:"scale"`  // "crop" or "fit"
+	Scale     string    `json:"scale"`  // "crop", "fit" or "smart" (fit what does not match the screen's orientation)
 	Limit     int       `json:"limit"`  // most photos to send; 0 means no limit
 	Mode      string    `json:"mode"`   // "auto", "local" or "relay"
 	Sources   Sources   `json:"sources"`

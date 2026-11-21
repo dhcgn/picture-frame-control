@@ -99,6 +99,16 @@ func shrink(ctx context.Context, magick, in, out string, w, h int, fit bool) err
 	return run(hiddenCmd(ctx, magick, in, "-auto-orient", "-resize", geometry, "-quality", strconv.Itoa(shrinkQuality), tmp), tmp, out)
 }
 
+// identify reads the size of an image in any format ImageMagick knows.
+func identify(ctx context.Context, magick, path string) (w, h int, ok bool) {
+	out, err := hiddenCmd(ctx, magick, "identify", "-format", "%w %h", path).Output()
+	if err != nil {
+		return 0, 0, false
+	}
+	_, err = fmt.Sscan(string(out), &w, &h)
+	return w, h, err == nil
+}
+
 // run runs cmd, which writes tmp, and renames tmp to out once it succeeded.
 // The error carries what the program said.
 func run(cmd *exec.Cmd, tmp, out string) error {

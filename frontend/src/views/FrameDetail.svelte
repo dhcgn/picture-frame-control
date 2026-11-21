@@ -359,9 +359,11 @@
           <div class="seg" role="group" aria-label={t('Darstellung', 'Display')}>
             <button type="button" aria-pressed={form.scale === 'crop'} onclick={() => (form.scale = 'crop')}>{t('Zuschneiden', 'Crop')}</button>
             <button type="button" aria-pressed={form.scale === 'fit'} onclick={() => (form.scale = 'fit')}>{t('Einpassen', 'Fit')}</button>
+            <button type="button" aria-pressed={form.scale === 'smart'} onclick={() => (form.scale = 'smart')}>{t('Smart', 'Smart')}</button>
           </div>
-          <p class="hint">{t('Zuschneiden füllt den ganzen Bildschirm, Ränder des Bildes gehen verloren. Einpassen zeigt das ganze Bild, mit Balken.',
-            'Crop fills the whole screen and loses the photo’s edges. Fit shows the whole photo, with bars.')}</p>
+          <p class="hint">{t('Zuschneiden füllt den ganzen Bildschirm, Ränder des Bildes gehen verloren. Einpassen zeigt das ganze Bild, mit Balken. Smart schneidet Bilder zu, die zur Ausrichtung des Bildschirms passen, und passt die anderen ein, etwa Hochkantfotos auf einem Querformat-Frame; fast quadratische Bilder werden auch eingepasst.',
+            'Crop fills the whole screen and loses the photo’s edges. Fit shows the whole photo, with bars. Smart crops photos that match the screen’s orientation and fits the others, such as portrait photos on a landscape frame; nearly square photos are fitted too.')}
+            {#if form.scale !== frame.scale}<br /><span class="warn">{t('Bilder, die schon auf dem Frame sind, bleiben wie gesendet. Erst „Alles neu senden“ sendet sie mit der neuen Darstellung.', 'Photos already on the frame stay as they were sent. Only “Resend everything” sends them with the new display.')}</span>{/if}</p>
         </div>
       </div>
       <div class="row">
