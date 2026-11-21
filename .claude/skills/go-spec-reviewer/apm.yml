@@ -1,0 +1,12 @@
+name: go-spec-reviewer
+version: 1.1.0
+description: Use when the user has a Go design doc, spec, RFC, or PRD to review before
+  implementation — "is this spec ready?", "review this before I build it", a planned
+  feature in a Go codebase, or a design that already reads as over-engineered. Not
+  for writing or fixing Go code (use go), CLI flag and config detail (use cobra-viper),
+  or versioning a shipped API (use go-release).
+author: Steve Francia
+license: MIT
+repository: https://github.com/spf13/go-skills
+homepage: https://github.com/spf13/go-skills
+type: hybrid

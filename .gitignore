@@ -5,3 +5,7 @@ frontend/dist
 frontend/node_modules
 frontend/bindings
 .claude/*.lock
+
+
+# APM dependencies
+apm_modules/

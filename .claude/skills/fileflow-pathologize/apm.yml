@@ -1,0 +1,13 @@
+name: fileflow-pathologize
+version: 1.1.0
+description: Use when Go code moves, copies, renames, downloads, extracts, or generates
+  files on disk — an EXDEV "invalid cross-device link" rename, a "file already exists"
+  conflict, a destination path built from untrusted input (user data, scraped names,
+  regex captures) — or when a filename or path segment must be safe on every OS. Not
+  for plain `os` file I/O (use go), CLI file commands (use cobra-viper), or desktop
+  file dialogs (use wails).
+author: Steve Francia
+license: MIT
+repository: https://github.com/spf13/go-skills
+homepage: https://github.com/spf13/go-skills
+type: hybrid

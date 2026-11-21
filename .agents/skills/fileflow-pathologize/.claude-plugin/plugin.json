@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "fileflow-pathologize",
+  "displayName": "File Operations: fileflow & pathologize",
+  "description": "Use when Go code moves, copies, renames, downloads, extracts, or generates files on disk \u2014 an EXDEV \"invalid cross-device link\" rename, a \"file already exists\" conflict, a destination path built from untrusted input (user data, scraped names, regex captures) \u2014 or when a filename or path segment must be safe on every OS. Not for plain `os` file I/O (use go), CLI file commands (use cobra-viper), or desktop file dialogs (use wails).",
+  "version": "1.1.0",
+  "author": {
+    "name": "Steve Francia",
+    "email": "steve.francia@gmail.com"
+  },
+  "homepage": "https://github.com/spf13/go-skills",
+  "repository": "https://github.com/spf13/go-skills",
+  "license": "MIT",
+  "keywords": [
+    "go",
+    "golang",
+    "files",
+    "fileflow",
+    "pathologize"
+  ]
+}

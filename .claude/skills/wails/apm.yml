@@ -1,0 +1,12 @@
+name: wails
+version: 1.1.0
+description: Use when a Go desktop app, webview app, or GUI is built, reviewed, or
+  debugged with Wails — "wails", `wails.json`, a v2 (stable) or v3 (alpha) project,
+  Go-to-frontend bindings, or a native window that must not bundle Chromium. Not for
+  general Go logic (use go), CLIs (use cobra-viper), release packaging and versioning
+  (use go-release), or web frameworks with no Go backend.
+author: Steve Francia
+license: MIT
+repository: https://github.com/spf13/go-skills
+homepage: https://github.com/spf13/go-skills
+type: hybrid

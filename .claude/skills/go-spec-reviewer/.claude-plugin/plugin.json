@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "go-spec-reviewer",
+  "displayName": "Go Spec Reviewer",
+  "description": "Use when the user has a Go design doc, spec, RFC, or PRD to review before implementation \u2014 \"is this spec ready?\", \"review this before I build it\", a planned feature in a Go codebase, or a design that already reads as over-engineered. Not for writing or fixing Go code (use go), CLI flag and config detail (use cobra-viper), or versioning a shipped API (use go-release).",
+  "version": "1.1.0",
+  "author": {
+    "name": "Steve Francia",
+    "email": "steve.francia@gmail.com"
+  },
+  "homepage": "https://github.com/spf13/go-skills",
+  "repository": "https://github.com/spf13/go-skills",
+  "license": "MIT",
+  "keywords": [
+    "go",
+    "golang",
+    "spec",
+    "review",
+    "design"
+  ]
+}
