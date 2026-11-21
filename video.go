@@ -6,8 +6,10 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -25,7 +27,14 @@ const (
 	videoMax      = 4*time.Minute + 59*time.Second
 	videoMaxBytes = 125_000_000
 	videoCRF      = 23
+
+	// The compact profile: at most 720p, a low bitrate and a slow preset, to
+	// save the frame's storage.
+	compactCRF  = 27
+	compactRate = 2_000_000
 )
+
+func compact(f store.Frame) bool { return f.Video == "compact" }
 
 // videoBox is the largest a video may be on this frame: its screen as it
 // hangs, within the size the frame says it can play. Unknown screens get
@@ -43,6 +52,13 @@ func videoBox(f store.Frame) (w, h int) {
 			w, h = min(w, short), min(h, long)
 		}
 	}
+	if compact(f) {
+		if w >= h {
+			w, h = min(w, 1280), min(h, 720)
+		} else {
+			w, h = min(w, 720), min(h, 1280)
+		}
+	}
 	return w, h
 }
 
@@ -58,21 +74,70 @@ func videoRate(w, h int, length time.Duration) int {
 	return min(rate, budget)
 }
 
-// transcode turns any video into one the frame plays: H.264 and AAC in MP4,
-// fitting inside w×h and never enlarged, at most 30 fps, cut at 4:59, upright
-// as recorded.
-// ponytail: HDR videos (iPhone HLG) come out flat; tone mapping when someone has them
-func transcode(ctx context.Context, ffmpeg, in, out string, w, h int, rate int) error {
-	tmp := out + ".tmp.mp4"
-	return run(hiddenCmd(ctx, ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", in,
+var fpsRe = regexp.MustCompile(`Video:.*?, ([\d.]+) fps`)
+
+// sourceFPS is the video's average frame rate as ffmpeg reports it, 0 if it
+// does not.
+func sourceFPS(ctx context.Context, ffmpeg, in string) float64 {
+	out, _ := hiddenCmd(ctx, ffmpeg, "-hide_banner", "-i", in).CombinedOutput() // no output file: describes the input and fails
+	m := fpsRe.FindSubmatch(out)
+	if m == nil {
+		return 0
+	}
+	fps, _ := strconv.ParseFloat(string(m[1]), 64)
+	return fps
+}
+
+// compactFPS is the constant frame rate for a video of this average rate:
+// 24, 25 and 30 stay, 50 and 60 are halved exactly, and anything else goes to
+// the nearest of the three. An unknown rate gets 30.
+func compactFPS(src float64) int {
+	if src >= 45 {
+		src /= 2
+	}
+	best := 30
+	for _, f := range []int{24, 25, 30} {
+		if src > 0 && math.Abs(float64(f)-src) < math.Abs(float64(best)-src) {
+			best = f
+		}
+	}
+	return best
+}
+
+// transcodeArgs are the ffmpeg arguments that turn any video into one the
+// frame plays: H.264 and AAC in MP4, fitting inside w×h and never enlarged,
+// cut at 4:59, upright as recorded. Standard caps the rate at 30 fps. Compact
+// forces a constant rate of fps, a slower preset, a tight bitrate and a
+// conservative stream, so that weak frames do not stutter.
+func transcodeArgs(in, tmp string, w, h, rate int, compact bool, fps int) []string {
+	scale := fmt.Sprintf("scale=w='min(%d,iw)':h='min(%d,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", w, h)
+	a := []string{"-hide_banner", "-loglevel", "error", "-y", "-i", in,
 		"-t", strconv.Itoa(int(videoMax.Seconds())),
-		"-map", "0:v:0", "-map", "0:a:0?",
-		"-vf", fmt.Sprintf("scale=w='min(%d,iw)':h='min(%d,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", w, h),
-		"-fpsmax", "30",
-		"-c:v", "libx264", "-preset", "medium", "-crf", strconv.Itoa(videoCRF), "-profile:v", "high", "-pix_fmt", "yuv420p",
-		"-maxrate", strconv.Itoa(rate), "-bufsize", strconv.Itoa(2*rate),
-		"-c:a", "aac", "-b:a", "96k", "-ac", "2",
-		"-movflags", "+faststart", tmp), tmp, out)
+		"-map", "0:v:0", "-map", "0:a:0?"}
+	if !compact {
+		return append(a, "-vf", scale, "-fpsmax", "30",
+			"-c:v", "libx264", "-preset", "medium", "-crf", strconv.Itoa(videoCRF), "-profile:v", "high", "-pix_fmt", "yuv420p",
+			"-maxrate", strconv.Itoa(rate), "-bufsize", strconv.Itoa(2*rate),
+			"-c:a", "aac", "-b:a", "96k", "-ac", "2",
+			"-movflags", "+faststart", tmp)
+	}
+	return append(a, "-vf", scale+":flags=lanczos,fps="+strconv.Itoa(fps), "-fps_mode", "cfr",
+		"-c:v", "libx264", "-preset", "slow", "-crf", strconv.Itoa(compactCRF), "-profile:v", "high", "-level", "4.0", "-pix_fmt", "yuv420p",
+		"-maxrate", strconv.Itoa(rate), "-bufsize", strconv.Itoa(rate),
+		"-g", strconv.Itoa(2*fps), "-bf", "2", "-refs", "3",
+		"-c:a", "aac", "-b:a", "64k", "-ac", "2",
+		"-movflags", "+faststart", tmp)
+}
+
+// transcode runs ffmpeg with transcodeArgs.
+// ponytail: HDR videos (iPhone HLG) come out flat; tone mapping when someone has them
+func transcode(ctx context.Context, ffmpeg, in, out string, w, h, rate int, compact bool) error {
+	tmp := out + ".tmp.mp4"
+	fps := 0
+	if compact {
+		fps = compactFPS(sourceFPS(ctx, ffmpeg, in))
+	}
+	return run(hiddenCmd(ctx, ffmpeg, transcodeArgs(in, tmp, w, h, rate, compact, fps)...), tmp, out)
 }
 
 // still takes the picture the frame shows before the video plays: one second
@@ -90,6 +155,11 @@ func (s *SyncService) videoFile(ctx context.Context, c *immich.Client, a syncpla
 	ffmpeg := s.store.Config().FFmpeg
 	w, h := videoBox(f)
 	variant = fmt.Sprintf("mp4-%dx%d-crf%d", w, h, videoCRF)
+	rate := videoRate(w, h, a.Length)
+	if compact(f) {
+		variant = fmt.Sprintf("mp4-%dx%d-compact", w, h)
+		rate = min(rate, compactRate)
+	}
 	base := s.cacheBase(a) + "_" + variant
 	video, thumb = base+".mp4", base+".jpg"
 	if st, err := os.Stat(video); err == nil {
@@ -116,7 +186,7 @@ func (s *SyncService) videoFile(ctx context.Context, c *immich.Client, a syncpla
 	if a.Length > videoMax {
 		s.log(f.ID, "info", i18n.T("%s ist länger als 4:59 und wird gekürzt", "%s is longer than 4:59 and is cut"), a.Name)
 	}
-	if err := transcode(ctx, ffmpeg, orig.Name(), video, w, h, videoRate(w, h, a.Length)); err != nil {
+	if err := transcode(ctx, ffmpeg, orig.Name(), video, w, h, rate, compact(f)); err != nil {
 		return "", "", "", 0, fmt.Errorf("ffmpeg: %w", err)
 	}
 	st, err := os.Stat(video)

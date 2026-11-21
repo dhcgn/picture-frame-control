@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -42,6 +43,9 @@ func TestVideoBoxAndRate(t *testing.T) {
 		{store.Frame{Screen: store.Size{W: 1920, H: 1080}, MaxVideo: full, Rotate: true}, 1080, 1920},
 		{store.Frame{Screen: store.Size{W: 1280, H: 800}, MaxVideo: store.Size{W: 1280, H: 720}}, 1280, 720},
 		{store.Frame{}, 1280, 720}, // nothing reported yet
+		{store.Frame{Screen: store.Size{W: 1920, H: 1080}, MaxVideo: full, Video: "compact"}, 1280, 720},
+		{store.Frame{Screen: store.Size{W: 1920, H: 1080}, MaxVideo: full, Video: "compact", Rotate: true}, 720, 1280},
+		{store.Frame{Screen: store.Size{W: 800, H: 480}, MaxVideo: full, Video: "compact"}, 800, 480}, // already small
 	} {
 		if w, h := videoBox(tc.frame); w != tc.w || h != tc.h {
 			t.Errorf("videoBox(%+v) = %dx%d, want %dx%d", tc.frame, w, h, tc.w, tc.h)
@@ -61,6 +65,34 @@ func TestVideoBoxAndRate(t *testing.T) {
 		if got := videoRate(tc.w, tc.h, tc.length); got < tc.want-1000 || got > tc.want+1000 {
 			t.Errorf("videoRate(%d, %d, %s) = %d, want about %d", tc.w, tc.h, tc.length, got, tc.want)
 		}
+	}
+}
+
+func TestCompactFPS(t *testing.T) {
+	for src, want := range map[float64]int{0: 30, 24: 24, 23.976: 24, 25: 25, 29.97: 30, 30: 30, 50: 25, 59.94: 30, 60: 30, 15: 24} {
+		if got := compactFPS(src); got != want {
+			t.Errorf("compactFPS(%v) = %d, want %d", src, got, want)
+		}
+	}
+}
+
+func TestTranscodeArgs(t *testing.T) {
+	joined := func(compact bool) string {
+		return " " + strings.Join(transcodeArgs("in", "out", 1280, 720, 2_000_000, compact, 25), " ") + " "
+	}
+	std, cmp := joined(false), joined(true)
+	for _, want := range []string{"-fpsmax 30", "-preset medium", "-crf 23", "-bufsize 4000000", "-b:a 96k"} {
+		if !strings.Contains(std, " "+want+" ") {
+			t.Errorf("standard lacks %q:%s", want, std)
+		}
+	}
+	for _, want := range []string{"-fps_mode cfr", "-preset slow", "-crf 27", "-level 4.0", "-g 50", "-bufsize 2000000", "-maxrate 2000000", "-b:a 64k"} {
+		if !strings.Contains(cmp, " "+want+" ") {
+			t.Errorf("compact lacks %q:%s", want, cmp)
+		}
+	}
+	if !strings.Contains(cmp, ":flags=lanczos,fps=25 ") || strings.Contains(cmp, "-fpsmax") {
+		t.Errorf("compact scales and sets its rate wrongly:%s", cmp)
 	}
 }
 
@@ -132,6 +164,38 @@ func TestVideoFile(t *testing.T) {
 	}
 	if _, _, _, _, err := s.videoFile(ctx, c, syncplan.Asset{ID: "wide", Checksum: "c", Video: true}, frame); err != nil || fetched.Load() != 3 {
 		t.Errorf("second time: %v, %d downloads; want it from the cache", err, fetched.Load())
+	}
+
+	// Compact: at most 720p, a constant frame rate (60 fps halved, others kept)
+	// and a bounded bitrate, kept apart from the standard files in the cache.
+	compactFrame := frame
+	compactFrame.Video = "compact"
+	cdims := regexp.MustCompile(`Video: h264.*?, (\d+)x(\d+).*?, ([\d.]+) fps, ([\d.]+) tbr`)
+	rate := regexp.MustCompile(`bitrate: (\d+) kb/s`)
+	for _, tc := range []struct {
+		id     string
+		h, fps string
+	}{
+		{"wide", "720", "30"},
+		{"tall", "720", "30"},
+		{"small", "360", "25"},
+	} {
+		video, _, variant, _, err := s.videoFile(ctx, c, syncplan.Asset{ID: tc.id, Checksum: "c", Video: true, Length: 5 * time.Second}, compactFrame)
+		if err != nil {
+			t.Fatalf("compact %s: %v", tc.id, err)
+		}
+		info := probe(video)
+		m, r := cdims.FindStringSubmatch(info), rate.FindStringSubmatch(info)
+		if m == nil || r == nil || m[2] != tc.h || m[3] != tc.fps || m[4] != tc.fps {
+			t.Errorf("compact %s: want height %s at a constant %s fps, bitrate known:\n%s", tc.id, tc.h, tc.fps, info)
+			continue
+		}
+		if kbps, _ := strconv.Atoi(r[1]); kbps > 2400 {
+			t.Errorf("compact %s: %d kb/s, want at most about 2000 plus sound", tc.id, kbps)
+		}
+		if !strings.HasSuffix(variant, "-compact") {
+			t.Errorf("compact %s: variant %q", tc.id, variant)
+		}
 	}
 	if left, _ := filepath.Glob(filepath.Join(s.cacheDir, "media", "original-*")); len(left) > 0 {
 		t.Errorf("downloaded originals left behind: %v", left)
