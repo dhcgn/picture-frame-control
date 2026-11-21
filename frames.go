@@ -312,6 +312,8 @@ type FrameSettings struct {
 	Rotate  bool   `json:"rotate"`
 	Mode    string `json:"mode"`
 	Caption string `json:"caption"`
+	// CaptionPeople appends the people assigned to a photo, with their age.
+	CaptionPeople bool `json:"captionPeople"`
 }
 
 // UpdateSettings saves a frame's options.
@@ -334,7 +336,7 @@ func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame,
 		return store.Frame{}, err
 	}
 	if err := s.store.UpdateFrame(id, func(f *store.Frame) {
-		f.Name, f.Limit, f.Scale, f.Video, f.Rotate, f.Mode, f.Caption = name, fs.Limit, fs.Scale, fs.Video, fs.Rotate, fs.Mode, fs.Caption
+		f.Name, f.Limit, f.Scale, f.Video, f.Rotate, f.Mode, f.Caption, f.CaptionPeople = name, fs.Limit, fs.Scale, fs.Video, fs.Rotate, fs.Mode, fs.Caption, fs.CaptionPeople
 	}); err != nil {
 		return store.Frame{}, err
 	}
