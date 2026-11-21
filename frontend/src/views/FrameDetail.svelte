@@ -343,8 +343,8 @@
             <button type="button" aria-pressed={form.caption === 'album'} onclick={() => (form.caption = 'album')}>{t('Albumname', 'Album name')}</button>
           </div>
           <p class="hint">
-            {t('Der Name eines Immich-Albums, in dem das Bild liegt, auch wenn es über einen Tag ausgewählt ist. Bei mehreren gewinnt ein zugeordnetes Album, sonst das kleinste. Bilder ohne Album bleiben ohne Unterschrift.',
-              'The name of an Immich album the photo is in, even when it is selected by a tag. With several, an assigned album wins, otherwise the smallest. Photos in no album get no caption.')}
+            {t('Der Name eines Immich-Albums, in dem das Bild liegt, auch wenn es über einen Tag ausgewählt ist. Bei mehreren gewinnt ein zugeordnetes Album, sonst das kleinste. Steht im Namen keine Jahreszahl, wird das Aufnahmejahr angehängt (Ostsee → Ostsee 2024). Bilder ohne Album bleiben ohne Unterschrift.',
+              'The name of an Immich album the photo is in, even when it is selected by a tag. With several, an assigned album wins, otherwise the smallest. If the name has no year, the year the photo was taken is appended (Ostsee → Ostsee 2024). Photos in no album get no caption.')}
             {#if form.caption !== frame.caption}<br /><span class="warn">{t('Nach dem Speichern sendet der nächste Sync die betroffenen Bilder neu.', 'After saving, the next sync sends the affected photos again.')}</span>{/if}
           </p>
         </div>

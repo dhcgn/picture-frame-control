@@ -25,7 +25,7 @@ Pick any number of [Immich](https://immich.app) albums and tags for each frame, 
 - **Photos sent from elsewhere** (e.g. from a phone) are only deleted if you say so, one by one or all at once.
 - **Photos:** with ImageMagick, shrunk from the original to the frame's screen as WebP. Without it, Immich's preview, or the full-size image where the preview is too small.
 - **Videos:** with ffmpeg, converted to what Frameo plays: H.264/AAC, up to the frame's resolution, 30 fps, under 125 MB, cut at 4:59. Without ffmpeg they are skipped.
-- **Captions:** optionally the name of the Immich album a photo is in.
+- **Captions:** optionally the name of the Immich album a photo is in, plus the year it was taken unless the name already has one.
 - **Force sync:** resend everything with the current settings, e.g. after installing ImageMagick.
 - **Frame management:** find frames on the network, pair, rename, browse the photos on a frame, hide, show, delete, download, and send files by hand.
 - **Limits:** keep at most a number of photos per frame, newest first. A full frame stops the sync for that frame and says so.

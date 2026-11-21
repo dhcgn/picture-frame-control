@@ -44,6 +44,48 @@ func TestPickAlbum(t *testing.T) {
 	}
 }
 
+func TestWithYear(t *testing.T) {
+	for _, tc := range []struct {
+		album string
+		year  int
+		want  string
+	}{
+		{"Ostsee", 2024, "Ostsee 2024"},
+		{"Hochzeit Anna 2023", 2024, "Hochzeit Anna 2023"},
+		{"Urlaub2024", 2021, "Urlaub2024"},
+		{"Italy 2019 2021", 2020, "Italy 2019 2021"},
+		{"Retro 1900", 2024, "Retro 1900"},
+		{"Zukunft 2050", 2024, "Zukunft 2050"},
+		{"Jahr 1899", 2024, "Jahr 1899 2024"},
+		{"Jahr 2051", 2024, "Jahr 2051 2024"},
+		{"Zimmer 12345", 2024, "Zimmer 12345 2024"},
+		{"Zimmer 20245", 2024, "Zimmer 20245 2024"},
+		{"Italy", 2019, "Italy 2019"}, // same album, other photo, other year
+		{"Italy", 2021, "Italy 2021"},
+		{"", 2024, ""},
+		{"Ostsee", 0, "Ostsee"},
+	} {
+		if got := withYear(tc.album, tc.year); got != tc.want {
+			t.Errorf("withYear(%q, %d) = %q, want %q", tc.album, tc.year, got, tc.want)
+		}
+	}
+}
+
+func TestLocalYear(t *testing.T) {
+	for _, tc := range []struct {
+		local, created string
+		want           int
+	}{
+		{"2024-12-31T23:30:00.000Z", "2025-01-01T00:30:00.000Z", 2024}, // wall clock wins
+		{"nonsense", "2025-01-01T00:30:00.000Z", 2025},                 // fallback
+		{"", "", 0},
+	} {
+		if got := localYear(immich.Asset{LocalDateTime: tc.local, FileCreatedAt: tc.created}); got != tc.want {
+			t.Errorf("localYear(%q, %q) = %d, want %d", tc.local, tc.created, got, tc.want)
+		}
+	}
+}
+
 // TestSyncMirrorsImmichOntoFrame runs preview and sync end to end against a
 // fake Immich and a fake frame: videos are skipped, a foreign photo goes only
 // when approved, photos are sent newest first with their capture date, and a
