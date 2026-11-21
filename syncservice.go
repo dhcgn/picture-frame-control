@@ -13,6 +13,7 @@ import (
 	_ "image/png"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -116,6 +117,7 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	p := &prepared{frame: f}
 	var wanted []syncplan.Asset
 	ffmpeg := s.store.Config().FFmpeg != ""
+	years := map[string]int{}
 	for _, a := range assets {
 		video := a.Type == immich.Video
 		// Videos need ffmpeg, and Frameo takes none shorter than 4 s.
@@ -124,10 +126,14 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 			continue
 		}
 		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName, Video: video, Length: a.Length()})
+		years[a.ID] = localYear(a)
 	}
 	if f.Caption == "album" {
 		if err := s.albumCaptions(ctx, c, wanted, f.Sources.Albums); err != nil {
 			return nil, err
+		}
+		for i := range wanted {
+			wanted[i].Caption = withYear(wanted[i].Caption, years[wanted[i].ID])
 		}
 	}
 	slices.SortStableFunc(wanted, func(a, b syncplan.Asset) int { return b.Taken.Compare(a.Taken) })
@@ -225,6 +231,28 @@ func pickAlbum(albums []immich.Album, selected []string) string {
 		return ""
 	}
 	return albums[best].Name
+}
+
+// yearRe finds a year (1900-2050) that is not part of a longer digit run.
+var yearRe = regexp.MustCompile(`(?:^|\D)(19\d{2}|20[0-4]\d|2050)(?:\D|$)`)
+
+// withYear appends the year to an album name that has none of its own.
+func withYear(album string, year int) string {
+	if album == "" || year == 0 || yearRe.MatchString(album) {
+		return album
+	}
+	return album + " " + strconv.Itoa(year)
+}
+
+// localYear is the year the photo was taken, by the wall clock where it was
+// taken, so a New Year's Eve photo is not filed under the wrong year. 0 if unknown.
+func localYear(a immich.Asset) int {
+	for _, s := range []string{a.LocalDateTime, a.FileCreatedAt} {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			return t.Year()
+		}
+	}
+	return 0
 }
 
 // takenAt is when the photo was taken, as the frame should file it.
