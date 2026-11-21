@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dhcgn/picture-frame-control/internal/frameo"
 	"github.com/dhcgn/picture-frame-control/internal/frameo/pb"
@@ -110,12 +111,13 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 	if err != nil {
 		return nil, err
 	}
-	assets, err := c.Assets(ctx, f.Sources.Albums, f.Sources.Tags)
+	assets, err := c.Assets(ctx, f.Sources.Albums, f.Sources.Tags, f.CaptionPeople)
 	if err != nil {
 		return nil, err
 	}
 	p := &prepared{frame: f}
 	var wanted []syncplan.Asset
+	peopleOf := map[string]string{} // asset id -> "Danny (30), Maria (4)"
 	ffmpeg := s.store.Config().FFmpeg != ""
 	years := map[string]int{}
 	for _, a := range assets {
@@ -127,6 +129,9 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 		}
 		wanted = append(wanted, syncplan.Asset{ID: a.ID, Checksum: a.Checksum, Taken: takenAt(a), Name: a.OriginalFileName, Video: video, Length: a.Length()})
 		years[a.ID] = localYear(a)
+		if f.CaptionPeople {
+			peopleOf[a.ID] = peopleCaption(a.People, localTakenAt(a))
+		}
 	}
 	if f.Caption == "album" {
 		if err := s.albumCaptions(ctx, c, wanted, f.Sources.Albums); err != nil {
@@ -135,6 +140,9 @@ func (s *SyncService) prepare(ctx context.Context, id string) (*prepared, error)
 		for i := range wanted {
 			wanted[i].Caption = withYear(wanted[i].Caption, years[wanted[i].ID])
 		}
+	}
+	for i := range wanted {
+		wanted[i].Caption = joinCaption(wanted[i].Caption, peopleOf[wanted[i].ID])
 	}
 	slices.SortStableFunc(wanted, func(a, b syncplan.Asset) int { return b.Taken.Compare(a.Taken) })
 	if f.Limit > 0 && len(wanted) > f.Limit {
@@ -247,10 +255,8 @@ func withYear(album string, year int) string {
 // localYear is the year the photo was taken, by the wall clock where it was
 // taken, so a New Year's Eve photo is not filed under the wrong year. 0 if unknown.
 func localYear(a immich.Asset) int {
-	for _, s := range []string{a.LocalDateTime, a.FileCreatedAt} {
-		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-			return t.Year()
-		}
+	if t := localTakenAt(a); !t.IsZero() {
+		return t.Year()
 	}
 	return 0
 }
@@ -263,6 +269,78 @@ func takenAt(a immich.Asset) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// localTakenAt is the wall-clock time where the photo was taken, which is
+// what a person's age on that day depends on (a New Year's Eve photo must not
+// count a year too many because of UTC). It falls back to the UTC moment.
+func localTakenAt(a immich.Asset) time.Time {
+	for _, s := range []string{a.LocalDateTime, a.FileCreatedAt} {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+// ageOn is the full years between a "YYYY-MM-DD" birth date and the day at.
+// It reports false for a missing or unreadable date, an unknown photo date or
+// a birth after the photo.
+func ageOn(birth string, at time.Time) (int, bool) {
+	b, err := time.Parse(time.DateOnly, birth)
+	if err != nil || at.IsZero() {
+		return 0, false
+	}
+	age := at.Year() - b.Year()
+	if at.Month() < b.Month() || at.Month() == b.Month() && at.Day() < b.Day() {
+		age--
+	}
+	if age < 0 {
+		return 0, false
+	}
+	return age, true
+}
+
+// manyPeople is the number of people from which the caption shortens names to
+// their initial.
+const manyPeople = 5
+
+// peopleCaption lists the named, visible people assigned to a photo with their
+// age on the day it was taken: "Danny (30), Maria (4)". From manyPeople on only
+// the initial is shown: "D (30), M (4)". A person without a usable birth date
+// is listed without age. The order is alphabetical, so the caption stays the
+// same from sync to sync and does not make the photo go out again.
+func peopleCaption(people []immich.Person, taken time.Time) string {
+	var shown []immich.Person
+	for _, p := range people {
+		if name := strings.TrimSpace(p.Name); name != "" && !p.Hidden {
+			p.Name = name
+			shown = append(shown, p)
+		}
+	}
+	// ponytail: byte order, so names starting with a non-ASCII letter come last; collation if that matters
+	slices.SortStableFunc(shown, func(a, b immich.Person) int { return strings.Compare(a.Name, b.Name) })
+	parts := make([]string, len(shown))
+	for i, p := range shown {
+		name := p.Name
+		if len(shown) >= manyPeople {
+			r, _ := utf8.DecodeRuneInString(name)
+			name = strings.ToUpper(string(r))
+		}
+		parts[i] = name
+		if age, ok := ageOn(p.BirthDate, taken); ok {
+			parts[i] += fmt.Sprintf(" (%d)", age)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// joinCaption puts the people after the album name; either may be empty.
+func joinCaption(album, people string) string {
+	if album == "" || people == "" {
+		return album + people
+	}
+	return album + " + " + people
 }
 
 // Preview works out, without changing anything, what a sync would do on

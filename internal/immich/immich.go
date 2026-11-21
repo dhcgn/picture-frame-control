@@ -236,6 +236,16 @@ type Asset struct {
 	FileCreatedAt    string   `json:"fileCreatedAt"` // the moment it was taken, UTC
 	OriginalFileName string   `json:"originalFileName"`
 	Duration         duration `json:"duration"`
+	People           []Person `json:"people"` // only filled by Assets with people=true
+}
+
+// Person is someone Immich recognised in a photo. Name is empty for an
+// unnamed face cluster; BirthDate is "YYYY-MM-DD" or empty.
+type Person struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	BirthDate string `json:"birthDate"`
+	Hidden    bool   `json:"isHidden"`
 }
 
 // Length is a video's running time, zero when Immich does not say.
@@ -321,8 +331,9 @@ func (c *Client) Count(ctx context.Context, albums, tags []string, types ...stri
 }
 
 // Assets lists the images and videos the albums and tags hold together, each
-// once, following Immich's paging to the end.
-func (c *Client) Assets(ctx context.Context, albums, tags []string) ([]Asset, error) {
+// once, following Immich's paging to the end. With people, each asset also
+// carries the people assigned to it.
+func (c *Client) Assets(ctx context.Context, albums, tags []string, people bool) ([]Asset, error) {
 	f := filter(albums, tags, nil)
 	if f == nil {
 		return nil, nil
@@ -331,6 +342,9 @@ func (c *Client) Assets(ctx context.Context, albums, tags []string) ([]Asset, er
 	cursor := ""
 	for {
 		body := map[string]any{"filter": f, "size": 1000}
+		if people {
+			body["withPeople"] = true
+		}
 		if cursor != "" {
 			body["cursor"] = cursor
 		}

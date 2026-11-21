@@ -136,14 +136,14 @@
   // The form starts from the saved values and is not reset while editing,
   // even when the frame list reloads underneath it.
   const formOf = (f?: Frame) => ({
-    name: f?.name ?? '', limit: f?.limit ?? 0, scale: f?.scale ?? 'crop', video: f?.video || 'standard', rotate: f?.rotate ?? false, mode: f?.mode ?? 'auto', caption: f?.caption ?? '',
+    name: f?.name ?? '', limit: f?.limit ?? 0, scale: f?.scale ?? 'crop', video: f?.video || 'standard', rotate: f?.rotate ?? false, mode: f?.mode ?? 'auto', caption: f?.caption ?? '', captionPeople: f?.captionPeople ?? false,
   })
   let form = $state(formOf(app.frames.find((f) => f.id === id)))
   const fromFrame = $derived(frame ? frame.place || frame.frameName : '') // what an empty name falls back to
   const dirty = $derived(
     !!frame &&
       (form.name.trim() !== frame.name || form.limit !== frame.limit || form.scale !== frame.scale || form.video !== (frame.video || 'standard') ||
-        form.rotate !== frame.rotate || form.mode !== frame.mode || form.caption !== frame.caption),
+        form.rotate !== frame.rotate || form.mode !== frame.mode || form.caption !== frame.caption || form.captionPeople !== frame.captionPeople),
   )
   let asking = $state<'' | 'view' | 'manage'>('')
 
@@ -346,6 +346,12 @@
             {t('Der Name eines Immich-Albums, in dem das Bild liegt, auch wenn es über einen Tag ausgewählt ist. Bei mehreren gewinnt ein zugeordnetes Album, sonst das kleinste. Steht im Namen keine Jahreszahl, wird das Aufnahmejahr angehängt (Ostsee → Ostsee 2024). Bilder ohne Album bleiben ohne Unterschrift.',
               'The name of an Immich album the photo is in, even when it is selected by a tag. With several, an assigned album wins, otherwise the smallest. If the name has no year, the year the photo was taken is appended (Ostsee → Ostsee 2024). Photos in no album get no caption.')}
             {#if form.caption !== frame.caption}<br /><span class="warn">{t('Nach dem Speichern sendet der nächste Sync die betroffenen Bilder neu.', 'After saving, the next sync sends the affected photos again.')}</span>{/if}
+          </p>
+          <div><input id="cpeople" type="checkbox" bind:checked={form.captionPeople} /> <label for="cpeople">{t('Personen mit Alter anhängen', 'Add people with their age')}</label></div>
+          <p class="hint">
+            {t('Die Personen, die Immich dem Bild zugeordnet hat, mit ihrem Alter am Aufnahmetag, z. B. „Ostsee 2021 + Danny (30), Maria (4)“. Ab 5 Personen nur Initiale und Alter („D (30), M (4)“). Ohne Geburtsdatum in Immich steht nur der Name; unbenannte Gesichter fehlen. Die Namen gehen mit dem Bild an den Frame.',
+              'The people Immich assigned to the photo, with their age on the day it was taken, e.g. “Ostsee 2021 + Danny (30), Maria (4)”. From 5 people on only the initial and age are shown (“D (30), M (4)”). Without a birth date in Immich only the name is shown; unnamed faces are left out. The names are sent to the frame with the photo.')}
+            {#if form.captionPeople !== frame.captionPeople}<br /><span class="warn">{t('Nach dem Speichern sendet der nächste Sync die betroffenen Bilder neu. Ändern sich Namen oder Geburtsdaten in Immich, geschieht das wieder.', 'After saving, the next sync sends the affected photos again. It does so again when names or birth dates change in Immich.')}</span>{/if}
           </p>
         </div>
       </div>

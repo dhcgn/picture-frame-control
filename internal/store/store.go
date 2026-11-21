@@ -39,20 +39,21 @@ type Sources struct {
 
 // Frame is one paired frame and how it is to be filled.
 type Frame struct {
-	ID        string    `json:"id"`        // the frame's peer id, hex
-	Name      string    `json:"name"`      // the user's name for it; empty follows FrameName
-	FrameName string    `json:"frameName"` // the name the frame reports for itself
-	Place     string    `json:"place"`     // the location the frame reports
-	PairedAt  time.Time `json:"pairedAt"`
-	Caption   string    `json:"caption"` // "" for none, "album" for the Immich album name
-	Screen    Size      `json:"screen"`
-	MaxVideo  Size      `json:"maxVideo"`
-	Rotate    bool      `json:"rotate"` // mounted portrait: swap width and height
-	Scale     string    `json:"scale"`  // "crop", "fit" or "smart" (fit what does not match the screen's orientation)
-	Video     string    `json:"video"`  // "" or "standard", or "compact" (at most 720p, low bitrate, to save storage)
-	Limit     int       `json:"limit"`  // most photos to send; 0 means no limit
-	Mode      string    `json:"mode"`   // "auto", "local" or "relay"
-	Sources   Sources   `json:"sources"`
+	ID            string    `json:"id"`        // the frame's peer id, hex
+	Name          string    `json:"name"`      // the user's name for it; empty follows FrameName
+	FrameName     string    `json:"frameName"` // the name the frame reports for itself
+	Place         string    `json:"place"`     // the location the frame reports
+	PairedAt      time.Time `json:"pairedAt"`
+	Caption       string    `json:"caption"`       // "" for none, "album" for the Immich album name
+	CaptionPeople bool      `json:"captionPeople"` // append the people Immich assigned to the photo, with their age
+	Screen        Size      `json:"screen"`
+	MaxVideo      Size      `json:"maxVideo"`
+	Rotate        bool      `json:"rotate"` // mounted portrait: swap width and height
+	Scale         string    `json:"scale"`  // "crop", "fit" or "smart" (fit what does not match the screen's orientation)
+	Video         string    `json:"video"`  // "" or "standard", or "compact" (at most 720p, low bitrate, to save storage)
+	Limit         int       `json:"limit"`  // most photos to send; 0 means no limit
+	Mode          string    `json:"mode"`   // "auto", "local" or "relay"
+	Sources       Sources   `json:"sources"`
 }
 
 // Config is the plain-text part of the store.

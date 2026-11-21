@@ -86,6 +86,62 @@ func TestLocalYear(t *testing.T) {
 	}
 }
 
+func TestAgeOn(t *testing.T) {
+	day := func(s string) time.Time { d, _ := time.Parse(time.DateOnly, s); return d }
+	for _, tc := range []struct {
+		birth, at string
+		age       int
+		ok        bool
+	}{
+		{"1991-03-10", "2021-03-09", 29, true}, // the day before the birthday
+		{"1991-03-10", "2021-03-10", 30, true}, // on the birthday
+		{"1991-03-10", "2021-12-31", 30, true},
+		{"2021-03-10", "2021-06-01", 0, true},  // a baby
+		{"2021-03-10", "2020-06-01", 0, false}, // born after the photo
+		{"", "2021-06-01", 0, false},           // no birth date
+		{"garbage", "2021-06-01", 0, false},
+	} {
+		if age, ok := ageOn(tc.birth, day(tc.at)); age != tc.age || ok != tc.ok {
+			t.Errorf("ageOn(%q, %s) = %d, %v; want %d, %v", tc.birth, tc.at, age, ok, tc.age, tc.ok)
+		}
+	}
+	if _, ok := ageOn("1991-03-10", time.Time{}); ok {
+		t.Error("unknown photo date must give no age")
+	}
+}
+
+func TestPeopleCaption(t *testing.T) {
+	at := time.Date(2021, 8, 1, 12, 0, 0, 0, time.UTC)
+	p := func(name, birth string) immich.Person { return immich.Person{Name: name, BirthDate: birth} }
+	danny, maria, martha := p("Danny", "1991-03-10"), p("Maria", "2017-01-01"), p("Martha", "1992-02-02")
+	for _, tc := range []struct {
+		name   string
+		people []immich.Person
+		want   string
+	}{
+		{"none", nil, ""},
+		{"three", []immich.Person{martha, danny, maria}, "Danny (30), Maria (4), Martha (29)"}, // alphabetical
+		{"no birth date", []immich.Person{p("Oma", ""), danny}, "Danny (30), Oma"},
+		{"unnamed and hidden", []immich.Person{p("", ""), {Name: "Geheim", Hidden: true}, danny}, "Danny (30)"},
+		{"four keep names", []immich.Person{danny, maria, martha, p("Zoe", "2000-01-01")}, "Danny (30), Maria (4), Martha (29), Zoe (21)"},
+		{"five get initials", []immich.Person{danny, maria, martha, p("Zoe", "2000-01-01"), p("Oma", "")}, "D (30), M (4), M (29), O, Z (21)"},
+		{"umlaut initial", []immich.Person{p("Östen", "1991-03-10"), danny, maria, martha, p("Zoe", "")}, "D (30), M (4), M (29), Z, Ö (30)"}, // byte order puts non-ASCII last
+		{"unnamed do not count towards five", []immich.Person{danny, maria, martha, p("Zoe", ""), p("", ""), p("", "")}, "Danny (30), Maria (4), Martha (29), Zoe"},
+	} {
+		if got := peopleCaption(tc.people, at); got != tc.want {
+			t.Errorf("%s: peopleCaption = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestJoinCaption(t *testing.T) {
+	for _, tc := range [][3]string{{"Ostsee", "Danny (30)", "Ostsee + Danny (30)"}, {"Ostsee", "", "Ostsee"}, {"", "Danny (30)", "Danny (30)"}, {"", "", ""}} {
+		if got := joinCaption(tc[0], tc[1]); got != tc[2] {
+			t.Errorf("joinCaption(%q, %q) = %q, want %q", tc[0], tc[1], got, tc[2])
+		}
+	}
+}
+
 // TestSyncMirrorsImmichOntoFrame runs preview and sync end to end against a
 // fake Immich and a fake frame: videos are skipped, a foreign photo goes only
 // when approved, photos are sent newest first with their capture date, and a
@@ -100,7 +156,8 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 			_, _ = w.Write([]byte(`{"assets":{"items":[
 				{"id":"old","type":"IMAGE","checksum":"c1","fileCreatedAt":"2024-05-01T10:00:00.000Z","originalFileName":"old.jpg"},
 				{"id":"vid","type":"VIDEO","checksum":"c2","fileCreatedAt":"2024-07-01T10:00:00.000Z"},
-				{"id":"new","type":"IMAGE","checksum":"c3","fileCreatedAt":"2024-06-01T10:00:00.000Z","originalFileName":"new.jpg"}
+				{"id":"new","type":"IMAGE","checksum":"c3","fileCreatedAt":"2024-06-01T10:00:00.000Z","localDateTime":"2024-06-01T12:00:00.000Z","originalFileName":"new.jpg",
+					 "people":[{"id":"p","name":"Maria","birthDate":"2018-06-20","isHidden":false},{"id":"q","name":"","birthDate":null,"isHidden":false}]}
 			],"nextCursor":null}}`))
 		case strings.HasSuffix(r.URL.Path, "/thumbnail"):
 			w.Header().Set("Content-Type", "image/jpeg")
@@ -123,6 +180,7 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 	_ = st.UpdateFrame(f.ID, func(fr *store.Frame) {
 		fr.Sources.Tags = []string{"reisen/ostsee"} // selected by tag, captioned by album
 		fr.Caption = "album"
+		fr.CaptionPeople = true
 	})
 
 	var mu sync.Mutex
@@ -159,9 +217,13 @@ func TestSyncMirrorsImmichOntoFrame(t *testing.T) {
 	if len(photos) != 2 || photos[0].Media.GetCaptureDate() != want {
 		t.Fatalf("frame got %d photos, first taken %d; want 2, newest (%d) first", len(photos), photos[0].Media.GetCaptureDate(), want)
 	}
-	// Selected by tag and in two albums: captioned with the smaller one.
-	if c := photos[0].Media.GetCaption(); c != "Ostsee 2024" {
-		t.Errorf("caption = %q, want the smaller album's name", c)
+	// Selected by tag and in two albums: captioned with the smaller one, plus
+	// the named person with the age on the day (Maria turns 6 on 20 June).
+	if c := photos[0].Media.GetCaption(); c != "Ostsee 2024 + Maria (5)" {
+		t.Errorf("caption = %q, want the smaller album's name and the person", c)
+	}
+	if c := photos[1].Media.GetCaption(); c != "Ostsee 2024" {
+		t.Errorf("caption without people = %q, want the album name only", c)
 	}
 
 	m, _ := syncplan.Load(s.manifestPath(f.ID))

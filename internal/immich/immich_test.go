@@ -65,7 +65,7 @@ func TestAssetsPagesRetriesAndFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.retryWait = 0
-	got, err := c.Assets(context.Background(), []string{"album"}, []string{"tag"})
+	got, err := c.Assets(context.Background(), []string{"album"}, []string{"tag"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,8 +87,36 @@ func TestNoSourcesMeansNothing(t *testing.T) {
 	if n, err := c.Count(context.Background(), nil, nil); n != 0 || err != nil {
 		t.Errorf("Count = %d, %v", n, err)
 	}
-	if a, err := c.Assets(context.Background(), nil, []string{}); a != nil || err != nil {
+	if a, err := c.Assets(context.Background(), nil, []string{}, false); a != nil || err != nil {
 		t.Errorf("Assets = %v, %v", a, err)
+	}
+}
+
+// People are asked for only on request and decoded the way Immich 3.4 sends
+// them: an unnamed face has an empty name, a missing birth date is null.
+func TestAssetsWithPeople(t *testing.T) {
+	var asked []bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct{ WithPeople bool }
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		asked = append(asked, body.WithPeople)
+		_, _ = w.Write([]byte(`{"assets":{"items":[{"id":"a","people":[
+			{"id":"p1","name":"Maria","birthDate":"2018-06-20","isHidden":false},
+			{"id":"p2","name":"","birthDate":null,"isHidden":false}]},{"id":"b"}],"nextCursor":null}}`))
+	}))
+	defer srv.Close()
+	c, _ := New(srv.URL, "k")
+	for _, with := range []bool{false, true} {
+		got, err := c.Assets(context.Background(), []string{"album"}, nil, with)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got[0].People) != 2 || got[0].People[0] != (Person{ID: "p1", Name: "Maria", BirthDate: "2018-06-20"}) || got[0].People[1].BirthDate != "" || got[1].People != nil {
+			t.Errorf("People = %+v", got)
+		}
+	}
+	if len(asked) != 2 || asked[0] || !asked[1] {
+		t.Errorf("withPeople sent as %v, want false then true", asked)
 	}
 }
 
