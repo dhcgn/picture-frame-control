@@ -77,7 +77,7 @@ func TestLocalYear(t *testing.T) {
 		want           int
 	}{
 		{"2024-12-31T23:30:00.000Z", "2025-01-01T00:30:00.000Z", 2024}, // wall clock wins
-		{"nonsense", "2025-01-01T00:30:00.000Z", 2025},                  // fallback
+		{"nonsense", "2025-01-01T00:30:00.000Z", 2025},                 // fallback
 		{"", "", 0},
 	} {
 		if got := localYear(immich.Asset{LocalDateTime: tc.local, FileCreatedAt: tc.created}); got != tc.want {
