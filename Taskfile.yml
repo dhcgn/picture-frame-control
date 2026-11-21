@@ -36,3 +36,10 @@ tasks:
     summary: Runs the Go tests
     cmds:
       - go test ./...
+
+  screenshots:
+    summary: Takes the screenshots in docs/screenshots, with made-up data (needs Chrome or Edge)
+    deps:
+      - task: common:build:frontend
+    cmds:
+      - go test -tags screenshots -run TestScreenshots -count=1 -v .

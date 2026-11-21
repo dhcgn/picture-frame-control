@@ -23,3 +23,7 @@ export function num(n: number): string {
 export function photos(n: number): string {
   return n === 1 ? t('1 Bild', '1 photo') : t(`${num(n)} Bilder`, `${num(n)} photos`)
 }
+
+export function videos(n: number): string {
+  return n === 1 ? t('1 Video', '1 video') : t(`${num(n)} Videos`, `${num(n)} videos`)
+}

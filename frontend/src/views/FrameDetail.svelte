@@ -6,7 +6,7 @@
   import type { MediaItem, Selection, SendProgress } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
   import FrameArt from '../lib/FrameArt.svelte'
   import { aboutOf, app, errText, loadFrames, loadSources, nameOf, notify, probe, screenOf, sourceIds, statusLine, type Frame } from '../lib/state.svelte'
-  import { locale, num, photos, t } from '../lib/i18n.svelte'
+  import { locale, num, photos, t, videos } from '../lib/i18n.svelte'
 
   let { id, onback, onassign }: { id: string; onback: () => void; onassign: () => void } = $props()
 
@@ -309,10 +309,10 @@
       {#if selection}
         <p class="hint">
           {#if selection.videos}
-            {t(`Zusammen ${num(selection.images)} Bilder und ${num(selection.videos)} Videos (vorerst übersprungen), Doppelte einmal gezählt.`,
-              `Together ${num(selection.images)} photos and ${num(selection.videos)} videos (skipped for now), duplicates counted once.`)}
+            {t(`Zusammen ${photos(selection.images)} und ${videos(selection.videos)}, Doppelte einmal gezählt. Videos gehen nur mit ffmpeg.`,
+              `Together ${photos(selection.images)} and ${videos(selection.videos)}, duplicates counted once. Videos need ffmpeg.`)}
           {:else}
-            {t(`Zusammen ${num(selection.images)} Bilder, Doppelte einmal gezählt.`, `Together ${num(selection.images)} photos, duplicates counted once.`)}
+            {t(`Zusammen ${photos(selection.images)}, Doppelte einmal gezählt.`, `Together ${photos(selection.images)}, duplicates counted once.`)}
           {/if}
           {#if frame.limit && selection.images > frame.limit}
             <span class="warn">{t(`Das Limit von ${frame.limit} Bildern schneidet ${selection.images - frame.limit} ältere ab.`,

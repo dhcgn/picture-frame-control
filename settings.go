@@ -75,7 +75,16 @@ func (s *SettingsService) Get() (Settings, error) {
 			st.UnframeoPath = p
 		}
 	}
-	st.DataDir, _ = store.DefaultDir()
+	// %APPDATA% rather than the full path: shorter, works in Explorer's
+	// address bar, and does not show the Windows user name.
+	if dir, err := store.DefaultDir(); err == nil {
+		st.DataDir = dir
+		if base, err := os.UserConfigDir(); err == nil {
+			if rest, ok := strings.CutPrefix(dir, base); ok {
+				st.DataDir = "%APPDATA%" + rest
+			}
+		}
+	}
 	return st, nil
 }
 

@@ -8,8 +8,8 @@
 Pick any number of [Immich](https://immich.app) albums and tags for each frame, and the app keeps the frame in step with them. Local folders as a source are planned ([#1](https://github.com/dhcgn/picture-frame-control/issues/1)).
 
 <p>
-  <img src="docs/Frames.png" alt="Frames page: a paired frame with its location, owner, resolution and number of photos" width="49%">
-  <img src="docs/Assignments.png" alt="Assignment page: an Immich tag ticked for a frame, with the resulting number of photos" width="49%">
+  <img src="docs/screenshots/frames.png" alt="Frames page: two paired frames with their recent photos, resolution, number of photos and connection" width="49%">
+  <img src="docs/screenshots/sync-preview.png" alt="Sync preview: per frame, how many photos stay, are sent and are deleted, and what to do with photos sent from a phone" width="49%">
 </p>
 
 ## Why
@@ -31,6 +31,33 @@ Pick any number of [Immich](https://immich.app) albums and tags for each frame, 
 - **Limits:** keep at most a number of photos per frame, newest first. A full frame stops the sync for that frame and says so.
 - **Updates:** built in, from GitHub Releases.
 - **Languages:** English and German, following the Windows display language by default.
+
+## Screenshots
+
+Made with invented frames, albums and drawn landscapes (see [Development](#development)).
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/frames.png"><img src="docs/screenshots/frames.png" alt="Frames page with two paired frames"></a><br><b>Frames</b>: every paired frame with its recent photos and whether it is reachable.</td>
+    <td width="50%"><a href="docs/screenshots/pair.png"><img src="docs/screenshots/pair.png" alt="Pairing dialog asking for the code shown on the frame"></a><br><b>Pairing</b> with the code the frame shows under “Add friend”.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/frame-photos.png"><img src="docs/screenshots/frame-photos.png" alt="Grid of the photos on a frame, some marked foreign or hidden"></a><br><b>Photos on a frame</b>: which came from Immich, which from elsewhere, which are hidden. Hide, show, delete, download.</td>
+    <td><a href="docs/screenshots/frame-sources.png"><img src="docs/screenshots/frame-sources.png" alt="The albums and tags assigned to a frame"></a><br><b>Sources</b> of one frame and what they add up to.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/frame-settings.png"><img src="docs/screenshots/frame-settings.png" alt="Settings of one frame: name, caption, limit, display, orientation, connection, permissions"></a><br><b>Frame settings</b>: name, caption, limit, crop or fit, portrait mounting, connection, permissions.</td>
+    <td><a href="docs/screenshots/assignment.png"><img src="docs/screenshots/assignment.png" alt="Matrix of albums and tags against frames, with the result per frame"></a><br><b>Assignment</b>: albums and tags against frames, many to many, with the result per frame.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/sync-preview.png"><img src="docs/screenshots/sync-preview.png" alt="Sync preview per frame"></a><br><b>Sync preview</b>: what stays, what is sent and deleted, photos from elsewhere, force sync.</td>
+    <td><a href="docs/screenshots/sync-done.png"><img src="docs/screenshots/sync-done.png" alt="Sync result with the log"></a><br><b>After the sync</b>: the result per frame and the log.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/settings.png"><img src="docs/screenshots/settings.png" alt="App settings: language, Immich, ImageMagick and ffmpeg, identity"></a><br><b>Settings</b>: language, Immich, ImageMagick and ffmpeg, identity.</td>
+    <td></td>
+  </tr>
+</table>
 
 ## What the app needs
 
@@ -70,12 +97,15 @@ On start, the app asks GitHub whether a newer version exists. If one does, the s
 Requirements: Go 1.27, Node 22, `wails3` v3.1.0 (`go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`).
 
 ```powershell
-wails3 dev      # run the app with hot reload
-wails3 build    # bin\picture-frame-control.exe, version "dev"
-go test ./...   # tests; frame, grid and Immich run as fakes
+wails3 dev                # run the app with hot reload
+wails3 build              # bin\picture-frame-control.exe, version "dev"
+go test ./...             # tests; frame, grid and Immich run as fakes
+wails3 task screenshots   # docs/screenshots, with made-up data
 ```
 
 Tests that use ImageMagick or ffmpeg run when the tools are installed and are skipped otherwise. Live tests against a real frame paired with unframeo: `go test -tags live ./internal/frameo`
+
+**Screenshots:** `wails3 task screenshots` builds the app in server mode and runs it with a profile of its own, against a fake Immich (five albums, five tags, drawn landscapes) and two fake frames. A headless Chrome or Edge then clicks through every view and saves it to `docs/screenshots`. Nothing of your own settings or photos is used. Run it again after changing the UI. ImageMagick, if installed, is shown as set up.
 
 HTML mockups of the screens (German): [mockups](mockups/index.html)
 

@@ -6,11 +6,20 @@
 package i18n
 
 import (
+	"fmt"
 	"strings"
 	"sync/atomic"
 )
 
 var english atomic.Bool
+
+// Photos is "1 photo" or "n photos" in the current language.
+func Photos(n int) string {
+	if n == 1 {
+		return T("1 Bild", "1 photo")
+	}
+	return fmt.Sprintf(T("%d Bilder", "%d photos"), n)
+}
 
 // SetLanguage switches messages to "en"; anything else means German.
 func SetLanguage(lang string) { english.Store(lang == "en") }

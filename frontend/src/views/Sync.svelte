@@ -135,7 +135,7 @@
               <span><i style:background="var(--send)"></i>{t('Senden', 'To send')} <b>{n(send)}</b></span>
               <span><i style:background="var(--del)"></i>{t('Löschen', 'To delete')} <b>{n(del)}</b>{#if forced(p)}<span class="muted"> {t('alle Bilder dieser App, sie kommen neu', 'every photo from this app; they come again')}</span>{:else if p.delete && p.canDelete}<span class="muted"> {t('nicht mehr ausgewählt oder geändert', 'no longer selected, or changed')}</span>{/if}</span>
               {#if p.foreign?.length}<span><i style:background="var(--foreign)"></i>{t('Fremd', 'Foreign')} <b>{n(p.foreign.length)}</b></span>{/if}
-              {#if p.skipped}<span><i style:background="var(--skip)"></i>{t('Übersprungen', 'Skipped')} <b>{n(p.skipped)}</b><span class="muted"> {t('Videos: ohne ffmpeg oder kürzer als 4 s', 'videos: without ffmpeg, or shorter than 4 s')}</span></span>{/if}
+              {#if p.skipped}<span><i style:background="var(--skip)"></i>{t('Übersprungen', 'Skipped')} <b>{n(p.skipped)}</b><span class="muted">{p.skipped === 1 ? t('Video', 'video') : t('Videos', 'videos')}: {t('ohne ffmpeg oder kürzer als 4 s', 'without ffmpeg, or shorter than 4 s')}</span></span>{/if}
               {#if p.overLimit}<span class="warn">{t('Über dem Limit', 'Over the limit')} <b>{n(p.overLimit)}</b><span class="muted"> {t('ältere werden nicht gesendet', 'older ones are not sent')}</span></span>{/if}
             </div>
             {#if !f.sources.albums?.length && !f.sources.tags?.length}
@@ -227,6 +227,7 @@
   .bar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--wall-2); grid-column: 2 / 4; }
   .facts { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; }
   .facts b { font-family: var(--mono); font-weight: 500; }
+  .facts b + .muted { margin-left: .35em; } /* Svelte drops the space before it */
   .facts i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   .note { grid-column: 2 / 4; font-size: 14px; padding: 10px 12px; border-radius: 6px; background: var(--wall); }
   .force { grid-column: 2 / 4; display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }

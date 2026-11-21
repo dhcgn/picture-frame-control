@@ -12,11 +12,16 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/updater"
 
 	"github.com/dhcgn/picture-frame-control/internal/i18n"
+	"github.com/dhcgn/picture-frame-control/internal/sdg"
 	"github.com/dhcgn/picture-frame-control/internal/store"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// devServers replaces Frameo's grid servers; only server builds set it (see
+// devgrid.go).
+var devServers []sdg.Endpoint
 
 func init() {
 	application.RegisterEvent[SendProgress]("send:progress")
@@ -45,6 +50,7 @@ func main() {
 	cacheDir := filepath.Join(cache, "picture-frame-control")
 	frames := NewFrameService(st, cacheDir)
 	frames.dataDir = dir
+	frames.servers = devServers
 	im := &ImmichService{store: st}
 	syncer := &SyncService{
 		store: st, frames: frames, immich: im, dataDir: dir, cacheDir: cacheDir,

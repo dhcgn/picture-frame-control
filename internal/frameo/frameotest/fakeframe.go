@@ -11,7 +11,9 @@ package frameotest
 import (
 	"encoding/binary"
 	"fmt"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/dhcgn/picture-frame-control/internal/frameo/pb"
 	"google.golang.org/protobuf/proto"
@@ -69,6 +71,10 @@ type Frame struct {
 	AsksWhoIsCalling bool
 	// Library is what a listing reports.
 	Library []*pb.MediaMetaData
+	// LiveLibrary makes Library follow what happens, as on a real frame:
+	// completed transfers are added and deleted media removed. Unset, it
+	// stays as the test set it.
+	LiveLibrary bool
 
 	// GetMediaType is the message number this frame serves photos on.
 	// Configurable for the same reason as ListType.
@@ -325,6 +331,11 @@ func (f *Frame) handle(rw MessageRW, msg []byte) error {
 		}
 		f.mu.Lock()
 		f.deleted = append(f.deleted, req.GetMediaIds()...)
+		if f.LiveLibrary {
+			f.Library = slices.DeleteFunc(f.Library, func(m *pb.MediaMetaData) bool {
+				return slices.Contains(req.GetMediaIds(), m.GetMediaId())
+			})
+		}
 		f.mu.Unlock()
 		if id := req.GetRequiresAcknowledgeReceiptId(); id != 0 {
 			return send(rw, 6, &pb.AcknowledgeReceipt{AcknowledgeId: id})
@@ -434,6 +445,14 @@ func (f *Frame) appendSegment(rw MessageRW, seg *pb.MediaDataSegment) error {
 		if len(t.data) == int(size) && !f.RefuseTransfers {
 			n := t.media.GetSize()
 			f.photos = append(f.photos, Photo{Media: t.media, Data: t.data[:n], Extra: t.data[n:]})
+			if f.LiveLibrary {
+				typ := pb.MediaMetaData_Type_MEDIAMETADATA_TYPE_PICTURE
+				if t.media.GetType() == pb.Media_VIDEO_WITH_THUMB {
+					typ = pb.MediaMetaData_Type_MEDIAMETADATA_TYPE_VIDEO
+				}
+				f.Library = append(f.Library, &pb.MediaMetaData{MediaId: t.media.GetId(), Type: typ, IsVisible: true,
+					CaptureDate: t.media.GetCaptureDate(), ReceiveDate: time.Now().UnixMilli()})
+			}
 		}
 	}
 	got := len(t.data)

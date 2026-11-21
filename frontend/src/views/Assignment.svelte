@@ -5,7 +5,7 @@
   import type { Selection } from '../../bindings/github.com/dhcgn/picture-frame-control/models'
   import FrameArt from '../lib/FrameArt.svelte'
   import { app, errText, isPortrait, loadFrames, loadSources, nameOf, notify, sourceIds, type Frame, type Source } from '../lib/state.svelte'
-  import { num, t } from '../lib/i18n.svelte'
+  import { num, t, videos } from '../lib/i18n.svelte'
 
   let { onsettings, onframes }: { onsettings: () => void; onframes: () => void } = $props()
 
@@ -142,7 +142,7 @@
     <input type="search" placeholder={t('Alben und Tags durchsuchen', 'Search albums and tags')} aria-label={t('Alben und Tags durchsuchen', 'Search albums and tags')} bind:value={query} />
     <label><input type="checkbox" bind:checked={onlyAssigned} /> {t('Nur zugeordnete zeigen', 'Show assigned only')}</label>
     <span class="muted count">
-      {app.sources.filter((s) => s.kind === 'album').length} {t('Alben', 'albums')} · {app.sources.filter((s) => s.kind === 'tag').length} Tags
+      {app.sources.filter((s) => s.kind === 'album').length} {t('Alben', 'albums')} · {app.sources.filter((s) => s.kind === 'tag').length} {t('Tags', 'tags')}
     </span>
   </div>
 
@@ -204,7 +204,7 @@
                 <span class="big">{n(r.images)}</span>
                 {f.limit ? t(`von ${n(f.limit)}`, `of ${n(f.limit)}`) : t('kein Limit', 'no limit')}
                 {#if f.limit && r.images > f.limit}<br /><span class="warn">{t(`${n(r.images - f.limit)} über dem Limit`, `${n(r.images - f.limit)} over the limit`)}</span>{/if}
-                {#if r.videos}<br /><span class="muted">{t(`dazu ${n(r.videos)} Videos, wenn ffmpeg eingerichtet ist`, `plus ${n(r.videos)} videos when ffmpeg is set up`)}</span>{/if}
+                {#if r.videos}<br /><span class="muted">{t(`dazu ${videos(r.videos)}, wenn ffmpeg eingerichtet ist`, `plus ${videos(r.videos)} when ffmpeg is set up`)}</span>{/if}
               {/if}
             </td>
           {/each}

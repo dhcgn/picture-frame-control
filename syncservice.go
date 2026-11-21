@@ -334,7 +334,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 			res.Error = i18n.T("Alles neu senden braucht die Berechtigung „Verwalten“", "Resending everything needs the \"manage\" permission")
 			return res
 		}
-		s.log(id, "info", i18n.T("Alles neu senden: %d Bilder dieser App werden ersetzt", "Resending everything: %d photos from this app are replaced"), len(p.plan.Keep))
+		s.log(id, "info", i18n.T("Alles von dieser App neu senden: %s", "Resending everything from this app: %s"), i18n.Photos(len(p.plan.Keep)))
 		p.plan.Delete = append(p.plan.Delete, p.plan.Keep...)
 		p.plan.Keep, p.plan.Send = nil, p.wanted
 	}
@@ -358,8 +358,8 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 	}
 	switch {
 	case len(del) > 0 && !p.canManage:
-		s.log(id, "warn", i18n.T("%d Bilder nicht gelöscht: Der App fehlt die Berechtigung „Verwalten“",
-			"%d photos not deleted: the app lacks the \"manage\" permission"), len(del))
+		s.log(id, "warn", i18n.T("%s nicht gelöscht: Der App fehlt die Berechtigung „Verwalten“",
+			"%s not deleted: the app lacks the \"manage\" permission"), i18n.Photos(len(del)))
 	case len(del) > 0:
 		s.emit("sync:progress", SyncProgress{Frame: id, Phase: "delete", Total: len(del)})
 		if _, err := s.frames.do(ctx, id, false, func(c *frameo.Client) error { return c.DeleteMedia(ctx, del) }); err != nil {
@@ -368,7 +368,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		}
 		m.Remove(del...)
 		res.Deleted = len(del)
-		s.log(id, "info", i18n.T("%d Bilder gelöscht", "%d photos deleted"), len(del))
+		s.log(id, "info", i18n.T("%s gelöscht", "%s deleted"), i18n.Photos(len(del)))
 	}
 	m.RemoveEntries(p.plan.Stale)
 	if err := m.Save(); err != nil {
@@ -430,7 +430,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		})
 		if fe, ok := errors.AsType[*frameo.FrameError](err); ok && fe.Code == errFrameFull {
 			res.Full = true
-			s.log(id, "warn", i18n.T("Der Frame ist voll. %d ältere Bilder nicht gesendet", "The frame is full. %d older photos not sent"), len(p.plan.Send)-i)
+			s.log(id, "warn", i18n.T("Der Frame ist voll. %s nicht gesendet, die älteren", "The frame is full. %s not sent, the older ones"), i18n.Photos(len(p.plan.Send)-i))
 			break
 		}
 		if err != nil {
