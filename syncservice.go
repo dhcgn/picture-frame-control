@@ -382,7 +382,7 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		return res
 	}
 	if len(p.plan.Send) > 0 {
-		if w, h, ok := s.shrinkTo(p.frame); ok {
+		if w, h, _, ok := s.shrinkTo(p.frame); ok {
 			s.log(id, "info", i18n.T("ImageMagick verkleinert die Bilder auf %d×%d (%s)", "ImageMagick shrinks the photos to %d×%d (%s)"), w, h, strings.ToUpper(shrinkFormat))
 		}
 		if slices.ContainsFunc(p.plan.Send, func(a syncplan.Asset) bool { return a.Video }) {
@@ -406,16 +406,17 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 			var video, thumb string
 			video, thumb, variant, size, err = s.videoFile(ctx, c, a, p.frame)
 			if err == nil {
-				// The still is cut from the converted, upright video: its size is the video's.
-				w, h, _ := imageSize(thumb)
-				fit = fits(p.frame, w, h)
+				fit = s.fitsFile(ctx, p.frame, thumb) // the still has the video's size
 			}
 			sendTo = func(fc *frameo.Client) (int64, error) {
 				return fc.SendVideo(ctx, frameo.Video{Path: video, Thumb: thumb, Taken: a.Taken, Fit: fit, Caption: a.Caption})
 			}
 		} else {
 			var path string
-			path, variant, size, fit, err = s.mediaFile(ctx, c, a, p.frame)
+			path, variant, size, err = s.mediaFile(ctx, c, a, p.frame)
+			if err == nil {
+				fit = s.fitsFile(ctx, p.frame, path)
+			}
 			sendTo = func(fc *frameo.Client) (int64, error) {
 				return fc.SendPhoto(ctx, frameo.Photo{Path: path, Taken: a.Taken, Fit: fit, Caption: a.Caption})
 			}
@@ -512,26 +513,28 @@ func (s *SyncService) reconcile(ctx context.Context, id string, m *syncplan.Mani
 		"ID check: %d found under the id sent, %d by capture date, %d not found"), direct, matched, missing)
 }
 
-// shrinkTo is the screen ImageMagick shrinks photos for on this frame, or ok
-// false when photos go as Immich's preview: without ImageMagick, or before the
-// frame reported its screen.
-func (s *SyncService) shrinkTo(f store.Frame) (w, h int, ok bool) {
+// shrinkTo is the screen ImageMagick shrinks photos for on this frame and the
+// variant that makes, or ok false when photos go as Immich's preview: without
+// ImageMagick, or before the frame reported its screen.
+func (s *SyncService) shrinkTo(f store.Frame) (w, h int, variant string, ok bool) {
 	w, h = screenOf(f)
-	return w, h, s.store.Config().Magick != "" && w != 0 && h != 0
-}
-
-// shrinkVariant names what ImageMagick makes of a photo for a w×h screen. The
-// smart mode has names of its own: a cover file made for a crop frame may be a
-// portrait photo that smart would have fitted.
-func shrinkVariant(f store.Frame, w, h int, fit bool) string {
+	if s.store.Config().Magick == "" || w == 0 || h == 0 {
+		return 0, 0, "", false
+	}
 	mode := "cover"
-	if fit {
+	if f.Scale == "fit" {
 		mode = "fit"
 	}
-	if f.Scale == "smart" {
-		mode = "smart-" + mode
+	return w, h, fmt.Sprintf("%s-%dx%d-%s-q%d", shrinkFormat, w, h, mode, shrinkQuality), true
+}
+
+// screenOf is the frame's screen as it hangs: a frame mounted portrait swaps
+// width and height. Zero until the frame has reported it.
+func screenOf(f store.Frame) (w, h int) {
+	if f.Rotate {
+		return f.Screen.H, f.Screen.W
 	}
-	return fmt.Sprintf("%s-%dx%d-%s-q%d", shrinkFormat, w, h, mode, shrinkQuality)
+	return f.Screen.W, f.Screen.H
 }
 
 // smartMarginPercent is how much longer than its short side a photo's long
@@ -557,13 +560,18 @@ func fits(f store.Frame, w, h int) bool {
 	return false
 }
 
-// screenOf is the frame's screen as it hangs: a frame mounted portrait swaps
-// width and height. Zero until the frame has reported it.
-func screenOf(f store.Frame) (w, h int) {
-	if f.Rotate {
-		return f.Screen.H, f.Screen.W
+// fitsFile decides the Fit flag for a prepared file. Only the flag depends on
+// the mode: the file is encoded as for crop. ImageMagick's output (WebP) is
+// sized by magick itself; it was shrunk in proportion, so its shape is the photo's.
+func (s *SyncService) fitsFile(ctx context.Context, f store.Frame, path string) bool {
+	if f.Scale != "smart" {
+		return f.Scale == "fit"
 	}
-	return f.Screen.W, f.Screen.H
+	w, h, ok := imageSize(path)
+	if m := s.store.Config().Magick; !ok && m != "" {
+		w, h, _ = identify(ctx, m, path)
+	}
+	return fits(f, w, h)
 }
 
 // covers reports whether a w×h photo fills a sw×sh screen without being
@@ -592,52 +600,37 @@ func imageSize(path string) (w, h int, ok bool) {
 // preview; the full-size download goes once it is converted, as it is large.
 // Without ImageMagick it is the smallest rendition that fills the screen.
 // What is sent stays in the cache, so frames with the same screen and scaling
-// share it. fit says whether the frame shows the photo whole, which the smart
-// mode decides per photo from its size.
+// share it.
 // ponytail: the cache only grows; a "clear cache" button when it gets big
-// ponytail: a full-size image the stdlib cannot read (WebP) counts as unsized and is cropped in smart mode
-func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset, f store.Frame) (path, variant string, size int, fit bool, err error) {
+func (s *SyncService) mediaFile(ctx context.Context, c *immich.Client, a syncplan.Asset, f store.Frame) (path, variant string, size int, err error) {
 	base := s.cacheBase(a)
-	w, h, ok := s.shrinkTo(f)
+	w, h, shrunk, ok := s.shrinkTo(f)
 	if !ok {
 		return s.source(ctx, c, a.ID, base, f)
 	}
-	// A smart frame has one cached file per outcome and cannot know which
-	// without the photo's size, so it looks for both.
-	modes := []bool{f.Scale == "fit"}
-	if f.Scale == "smart" {
-		modes = []bool{false, true}
-	}
-	for _, m := range modes {
-		v := shrinkVariant(f, w, h, m)
-		out := base + "_" + v + "." + shrinkFormat
-		if st, err := os.Stat(out); err == nil {
-			return out, v, int(st.Size()), m, nil
-		}
+	out := base + "_" + shrunk + "." + shrinkFormat
+	if st, err := os.Stat(out); err == nil {
+		return out, shrunk, int(st.Size()), nil
 	}
 
 	path, variant, size, err = s.fetch(ctx, c, a.ID, base, "fullsize")
 	if err != nil {
-		return "", "", 0, false, err
+		return "", "", 0, err
 	}
-	pw, ph, _ := imageSize(path)
-	fit = fits(f, pw, ph)
-	shrunk := shrinkVariant(f, w, h, fit)
-	out := base + "_" + shrunk + "." + shrinkFormat
-	if err := shrink(ctx, s.store.Config().Magick, path, out, w, h, fit); err != nil {
+	if err := shrink(ctx, s.store.Config().Magick, path, out, w, h, f.Scale == "fit"); err != nil {
 		if ctx.Err() != nil {
-			return "", "", 0, false, ctx.Err()
+			return "", "", 0, ctx.Err()
 		}
 		s.log(f.ID, "warn", i18n.T("%s: ImageMagick fehlgeschlagen, sende das Bild aus Immich unverändert: %v",
 			"%s: ImageMagick failed, sending the photo from Immich as it is: %v"), a.Name, err)
-		return path, variant, size, fit, nil
+		return path, variant, size, nil
 	}
 	_ = os.Remove(path)
 	st, err := os.Stat(out)
 	if err != nil {
-		return "", "", 0, false, err
+		return "", "", 0, err
 	}
-	return out, shrunk, int(st.Size()), fit, nil
+	return out, shrunk, int(st.Size()), nil
 }
 
 // cacheBase is where the files prepared from one version of an asset start:
@@ -651,19 +644,16 @@ func (s *SyncService) cacheBase(a syncplan.Asset) string {
 // where the preview falls short -- a portrait photo on a landscape Full HD
 // frame, say, which the preview's 1440 pixels cannot cover. A preview whose
 // size cannot be read counts as falling short.
-func (s *SyncService) source(ctx context.Context, c *immich.Client, id, base string, f store.Frame) (path, variant string, size int, fit bool, err error) {
+func (s *SyncService) source(ctx context.Context, c *immich.Client, id, base string, f store.Frame) (path, variant string, size int, err error) {
 	path, variant, size, err = s.fetch(ctx, c, id, base, "preview")
 	if err != nil {
-		return "", "", 0, false, err
+		return "", "", 0, err
 	}
 	sw, sh := screenOf(f)
-	w, h, ok := imageSize(path)
-	fit = fits(f, w, h) // the preview has the full-size image's proportions
-	if sw == 0 || ok && covers(w, h, sw, sh, fit) {
-		return path, variant, size, fit, nil
+	if w, h, ok := imageSize(path); sw == 0 || ok && covers(w, h, sw, sh, f.Scale == "fit") {
+		return path, variant, size, nil
 	}
-	path, variant, size, err = s.fetch(ctx, c, id, base, "fullsize")
-	return path, variant, size, fit, err
+	return s.fetch(ctx, c, id, base, "fullsize")
 }
 
 // fetch returns a rendition of the asset ("preview" or "fullsize") from the

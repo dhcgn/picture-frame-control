@@ -93,15 +93,9 @@ func TestMediaFileNeverBelowScreen(t *testing.T) {
 		{"land", store.Frame{ID: "f"}, "preview-jpg"},                // screen not reported yet
 		{"tiny", frameOf(1920, 1080, "crop", false), "fullsize-jpg"}, // as large as it gets, not enlarged
 	} {
-		_, variant, _, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: tc.asset, Checksum: "c"}, tc.frame)
+		_, variant, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: tc.asset, Checksum: "c"}, tc.frame)
 		if err != nil || variant != tc.variant {
 			t.Errorf("%s on %+v: %q, %v; want %q", tc.asset, tc.frame.Screen, variant, err, tc.variant)
-		}
-	}
-	// Smart decides per photo: the portrait one is fitted, the landscape one cropped.
-	for asset, wantFit := range map[string]bool{"land": false, "port": true} {
-		if _, _, _, fit, err := s.mediaFile(ctx, c, syncplan.Asset{ID: asset, Checksum: "c"}, frameOf(1920, 1080, "smart", false)); err != nil || fit != wantFit {
-			t.Errorf("%s smart: fit %t, %v; want %t", asset, fit, err, wantFit)
 		}
 	}
 	if cnt.n["land/preview"] != 1 || cnt.n["port/preview"] != 1 || cnt.n["port/fullsize"] != 1 || cnt.n["land/fullsize"] != 1 {
@@ -145,11 +139,8 @@ func TestMediaFileShrinks(t *testing.T) {
 		{"port", frameOf(1920, 1080, "fit", false), "810x1080 WEBP", "webp-1920x1080-fit-q82"},
 		{"tiny", frameOf(1920, 1080, "crop", false), "800x600 WEBP", "webp-1920x1080-cover-q82"}, // never enlarged
 		{"tiny", frameOf(1920, 1080, "fit", false), "800x600 WEBP", "webp-1920x1080-fit-q82"},
-		{"land", frameOf(1280, 800, "smart", false), "1280x960 WEBP", "webp-1280x800-smart-cover-q82"},
-		{"port", frameOf(1280, 800, "smart", false), "600x800 WEBP", "webp-1280x800-smart-fit-q82"},
-		{"land", frameOf(1280, 800, "smart", true), "800x600 WEBP", "webp-800x1280-smart-fit-q82"}, // mounted upright, landscape is the odd one
 	} {
-		path, variant, n, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: tc.asset, Checksum: "c"}, tc.frame)
+		path, variant, n, err := s.mediaFile(ctx, c, syncplan.Asset{ID: tc.asset, Checksum: "c"}, tc.frame)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,7 +148,7 @@ func TestMediaFileShrinks(t *testing.T) {
 			t.Errorf("%s on %+v %s: %s %q; want %s %q", tc.asset, tc.frame.Screen, tc.frame.Scale, got, variant, tc.wantSize, tc.variant)
 		}
 	}
-	if n := cnt.n["land/preview"] + cnt.n["port/preview"] + cnt.n["tiny/preview"]; n != 0 || cnt.n["land/fullsize"] != 5 {
+	if n := cnt.n["land/preview"] + cnt.n["port/preview"] + cnt.n["tiny/preview"]; n != 0 || cnt.n["land/fullsize"] != 3 {
 		t.Errorf("downloads %v: want only full-size images, once per conversion", cnt.n)
 	}
 	if left, _ := filepath.Glob(filepath.Join(s.cacheDir, "media", "*_fullsize.*")); len(left) > 0 {
@@ -166,7 +157,7 @@ func TestMediaFileShrinks(t *testing.T) {
 
 	// ImageMagick that fails: the photo still goes, as it came from Immich.
 	_ = s.store.Update(func(c *store.Config) error { c.Magick = magick + "-missing.exe"; return nil })
-	path, variant, _, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: "land", Checksum: "c", Name: "land.jpg"}, frameOf(1024, 768, "crop", false))
+	path, variant, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: "land", Checksum: "c", Name: "land.jpg"}, frameOf(1024, 768, "crop", false))
 	if err != nil || variant != "fullsize-jpg" || !strings.HasSuffix(path, "_fullsize.jpg") {
 		t.Errorf("failing ImageMagick: %s %q %v, want the full-size image", path, variant, err)
 	}
@@ -213,6 +204,36 @@ func TestFits(t *testing.T) {
 	} {
 		if got := fits(tc.frame, tc.w, tc.h); got != tc.want {
 			t.Errorf("%s: fits = %t, want %t", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestSmartEncodesLikeCrop checks that smart changes only the Fit flag: the
+// file ImageMagick makes is the one a crop frame gets, even for a portrait
+// photo that goes with Fit.
+func TestSmartEncodesLikeCrop(t *testing.T) {
+	magick := tools["magick"].find()
+	if magick == "" {
+		t.Skip("ImageMagick is not installed")
+	}
+	s, _ := fakeRenditions(t, magick)
+	c, err := s.immich.client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	for asset, wantFit := range map[string]bool{"land": false, "port": true} {
+		smart, crop := frameOf(1920, 1080, "smart", false), frameOf(1920, 1080, "crop", false)
+		path, variant, _, err := s.mediaFile(ctx, c, syncplan.Asset{ID: asset, Checksum: "c"}, smart)
+		if err != nil || variant != "webp-1920x1080-cover-q82" {
+			t.Fatalf("%s smart: %q, %v; want the crop file", asset, variant, err)
+		}
+		if _, v, _, _ := s.mediaFile(ctx, c, syncplan.Asset{ID: asset, Checksum: "c"}, crop); v != variant {
+			t.Errorf("%s: crop got %q, smart %q", asset, v, variant)
+		}
+		if got := s.fitsFile(ctx, smart, path); got != wantFit {
+			t.Errorf("%s: fit %t, want %t", asset, got, wantFit)
 		}
 	}
 }
