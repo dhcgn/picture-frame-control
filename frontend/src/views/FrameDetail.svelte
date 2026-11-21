@@ -136,13 +136,13 @@
   // The form starts from the saved values and is not reset while editing,
   // even when the frame list reloads underneath it.
   const formOf = (f?: Frame) => ({
-    name: f?.name ?? '', limit: f?.limit ?? 0, scale: f?.scale ?? 'crop', rotate: f?.rotate ?? false, mode: f?.mode ?? 'auto', caption: f?.caption ?? '',
+    name: f?.name ?? '', limit: f?.limit ?? 0, scale: f?.scale ?? 'crop', video: f?.video || 'standard', rotate: f?.rotate ?? false, mode: f?.mode ?? 'auto', caption: f?.caption ?? '',
   })
   let form = $state(formOf(app.frames.find((f) => f.id === id)))
   const fromFrame = $derived(frame ? frame.place || frame.frameName : '') // what an empty name falls back to
   const dirty = $derived(
     !!frame &&
-      (form.name.trim() !== frame.name || form.limit !== frame.limit || form.scale !== frame.scale ||
+      (form.name.trim() !== frame.name || form.limit !== frame.limit || form.scale !== frame.scale || form.video !== (frame.video || 'standard') ||
         form.rotate !== frame.rotate || form.mode !== frame.mode || form.caption !== frame.caption),
   )
   let asking = $state<'' | 'view' | 'manage'>('')
@@ -364,6 +364,18 @@
           <p class="hint">{t('Zuschneiden füllt den ganzen Bildschirm, Ränder des Bildes gehen verloren. Einpassen zeigt das ganze Bild, mit Balken. Smart schneidet Bilder zu, die zur Ausrichtung des Bildschirms passen, und passt die anderen ein, etwa Hochkantfotos auf einem Querformat-Frame; fast quadratische Bilder werden auch eingepasst.',
             'Crop fills the whole screen and loses the photo’s edges. Fit shows the whole photo, with bars. Smart crops photos that match the screen’s orientation and fits the others, such as portrait photos on a landscape frame; nearly square photos are fitted too.')}
             {#if form.scale !== frame.scale}<br /><span class="warn">{t('Bilder, die schon auf dem Frame sind, bleiben wie gesendet. Erst „Alles neu senden“ sendet sie mit der neuen Darstellung.', 'Photos already on the frame stay as they were sent. Only “Resend everything” sends them with the new display.')}</span>{/if}</p>
+        </div>
+      </div>
+      <div class="row">
+        <span class="k">{t('Videoqualität', 'Video quality')}</span>
+        <div>
+          <div class="seg" role="group" aria-label={t('Videoqualität', 'Video quality')}>
+            <button type="button" aria-pressed={form.video === 'standard'} onclick={() => (form.video = 'standard')}>{t('Standard', 'Standard')}</button>
+            <button type="button" aria-pressed={form.video === 'compact'} onclick={() => (form.video = 'compact')}>{t('Kompakt', 'Compact')}</button>
+          </div>
+          <p class="hint">{t('Standard nutzt bis zu 5 oder 10 Mbit/s. Kompakt verkleinert Videos auf höchstens 720p und etwa 2 Mbit/s und rechnet länger, um bei wenig Speicher gut auszusehen (etwa 15 MB pro Minute).',
+            'Standard uses up to 5 or 10 Mbps. Compact shrinks videos to at most 720p and about 2 Mbps and takes longer to encode, to look good while saving storage (about 15 MB per minute).')}
+            {#if form.video !== (frame.video || 'standard')}<br /><span class="warn">{t('Videos, die schon auf dem Frame sind, bleiben wie gesendet. Erst „Alles neu senden“ wandelt sie neu um.', 'Videos already on the frame stay as they were sent. Only “Resend everything” converts them again.')}</span>{/if}</p>
         </div>
       </div>
       <div class="row">

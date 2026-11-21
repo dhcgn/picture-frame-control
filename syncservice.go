@@ -387,7 +387,11 @@ func (s *SyncService) runFrame(ctx context.Context, rf RunFrame) FrameResult {
 		}
 		if slices.ContainsFunc(p.plan.Send, func(a syncplan.Asset) bool { return a.Video }) {
 			w, h := videoBox(p.frame)
-			s.log(id, "info", i18n.T("ffmpeg wandelt die Videos um: höchstens %d×%d, 30 fps, bis 4:59", "ffmpeg converts the videos: at most %d×%d, 30 fps, up to 4:59"), w, h)
+			if compact(p.frame) {
+				s.log(id, "info", i18n.T("ffmpeg wandelt die Videos kompakt um: höchstens %d×%d, konstante Bildrate, bis 4:59", "ffmpeg converts the videos compactly: at most %d×%d, constant frame rate, up to 4:59"), w, h)
+			} else {
+				s.log(id, "info", i18n.T("ffmpeg wandelt die Videos um: höchstens %d×%d, 30 fps, bis 4:59", "ffmpeg converts the videos: at most %d×%d, 30 fps, up to 4:59"), w, h)
+			}
 		}
 	}
 	var sent []syncplan.Entry

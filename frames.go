@@ -308,6 +308,7 @@ type FrameSettings struct {
 	Name    string `json:"name"` // empty follows the frame's own name
 	Limit   int    `json:"limit"`
 	Scale   string `json:"scale"`
+	Video   string `json:"video"`
 	Rotate  bool   `json:"rotate"`
 	Mode    string `json:"mode"`
 	Caption string `json:"caption"`
@@ -323,6 +324,8 @@ func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame,
 		return store.Frame{}, errors.New(i18n.T("Das Limit darf nicht negativ sein", "The limit must not be negative"))
 	case fs.Scale != "crop" && fs.Scale != "fit" && fs.Scale != "smart":
 		return store.Frame{}, fmt.Errorf(i18n.T("unbekannte Darstellung %q", "unknown display mode %q"), fs.Scale)
+	case fs.Video != "" && fs.Video != "standard" && fs.Video != "compact":
+		return store.Frame{}, fmt.Errorf(i18n.T("unbekannte Videoqualität %q", "unknown video quality %q"), fs.Video)
 	case fs.Mode != "auto" && fs.Mode != "local" && fs.Mode != "relay":
 		return store.Frame{}, fmt.Errorf(i18n.T("unbekannter Verbindungsweg %q", "unknown connection mode %q"), fs.Mode)
 	}
@@ -331,7 +334,7 @@ func (s *FrameService) UpdateSettings(id string, fs FrameSettings) (store.Frame,
 		return store.Frame{}, err
 	}
 	if err := s.store.UpdateFrame(id, func(f *store.Frame) {
-		f.Name, f.Limit, f.Scale, f.Rotate, f.Mode, f.Caption = name, fs.Limit, fs.Scale, fs.Rotate, fs.Mode, fs.Caption
+		f.Name, f.Limit, f.Scale, f.Video, f.Rotate, f.Mode, f.Caption = name, fs.Limit, fs.Scale, fs.Video, fs.Rotate, fs.Mode, fs.Caption
 	}); err != nil {
 		return store.Frame{}, err
 	}
