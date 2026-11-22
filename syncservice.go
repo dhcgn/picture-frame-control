@@ -3,14 +3,17 @@
 package main
 
 import (
+	"bufio"
 	"cmp"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
 	_ "image/gif" // sizes for imageSize
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -693,15 +696,73 @@ func covers(w, h, sw, sh int, fit bool) bool {
 	return w >= sw && h >= sh
 }
 
-// imageSize reads the size of a JPEG, PNG or GIF from its header.
+// imageSize reads the size of a JPEG, PNG or GIF from its header, as the photo
+// is shown: a JPEG whose EXIF orientation turns it a quarter swaps the sides.
+// (Immich's preview is already upright; the full-size original is not.)
 func imageSize(path string) (w, h int, ok bool) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, 0, false
 	}
 	defer f.Close()
-	c, _, err := image.DecodeConfig(f)
-	return c.Width, c.Height, err == nil
+	c, format, err := image.DecodeConfig(f)
+	if err != nil {
+		return 0, 0, false
+	}
+	w, h = c.Width, c.Height
+	if format == "jpeg" {
+		if _, err := f.Seek(0, io.SeekStart); err == nil && exifQuarterTurn(f) {
+			w, h = h, w
+		}
+	}
+	return w, h, true
+}
+
+// exifQuarterTurn reports whether a JPEG's EXIF orientation (tag 0x0112,
+// values 5 to 8) displays it turned by a quarter, so width and height swap.
+// Anything unreadable counts as upright.
+func exifQuarterTurn(r io.Reader) bool {
+	br := bufio.NewReader(r)
+	if soi, _ := br.Peek(2); len(soi) < 2 || soi[0] != 0xff || soi[1] != 0xd8 {
+		return false
+	}
+	_, _ = br.Discard(2)
+	for {
+		var hdr [4]byte // marker, segment length
+		if _, err := io.ReadFull(br, hdr[:]); err != nil || hdr[0] != 0xff {
+			return false
+		}
+		n := int(binary.BigEndian.Uint16(hdr[2:])) - 2
+		if hdr[1] == 0xda || n < 0 { // start of scan: no EXIF after this
+			return false
+		}
+		if hdr[1] != 0xe1 { // not APP1
+			if _, err := br.Discard(n); err != nil {
+				return false
+			}
+			continue
+		}
+		seg := make([]byte, n)
+		if _, err := io.ReadFull(br, seg); err != nil || len(seg) < 14 || string(seg[:6]) != "Exif\x00\x00" {
+			return false
+		}
+		tiff := seg[6:]
+		var bo binary.ByteOrder = binary.BigEndian
+		if string(tiff[:2]) == "II" {
+			bo = binary.LittleEndian
+		}
+		ifd := int(bo.Uint32(tiff[4:]))
+		if ifd < 8 || ifd+2 > len(tiff) {
+			return false
+		}
+		for i, cnt := 0, int(bo.Uint16(tiff[ifd:])); i < cnt && ifd+2+12*(i+1) <= len(tiff); i++ {
+			e := tiff[ifd+2+12*i:]
+			if bo.Uint16(e) == 0x0112 {
+				return bo.Uint16(e[8:]) >= 5 && bo.Uint16(e[8:]) <= 8
+			}
+		}
+		return false
+	}
 }
 
 // mediaFile returns a file ready to send for the asset. With ImageMagick it is
